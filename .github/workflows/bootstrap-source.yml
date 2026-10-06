@@ -34,31 +34,3 @@ jobs:
           git add -A
           git commit -m "Unpack verified Sierra Zero source"
           git push
-name: Unpack Sierra Zero source
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  unpack:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Unpack verified source
-        run: |
-          test -f sierra-zero-source.tar.gz
-          tar -xzf sierra-zero-source.tar.gz
-          rm sierra-zero-source.tar.gz
-          rm .github/workflows/bootstrap-source.yml
-      - name: Commit clean source tree
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Unpack verified Sierra Zero source"
-          git push
