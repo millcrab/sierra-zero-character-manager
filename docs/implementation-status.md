@@ -1,6 +1,6 @@
 # Implementation Status
 
-## Completed through checkpoint 0.6
+## Completed through checkpoint 0.6.1
 
 - React, TypeScript, and Vite foundation.
 - Relative production paths for GitHub Pages repository hosting.
@@ -37,6 +37,8 @@
 - Visible two-way connector paths on all specialization trees, with reachable and purchased path states.
 - Expandable inventory entries with attachment management isolated in a focused modification dialog.
 - Colored geometric Ability, Proficiency, Boost, Difficulty, Challenge, and Setback dice symbols in pools and rules text.
+- Android/PWA back-button history across the roster, character modes, Play and Advance tabs, and creation steps.
+- Mobile-contained specialization trees that scroll horizontally without forcing the full page beyond the phone viewport.
 - User-controlled PWA update notification, installed-version display, and update-and-restart action.
 
 ## Deliberately deferred

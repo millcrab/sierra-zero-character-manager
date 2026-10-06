@@ -48,6 +48,30 @@ type CharacterUpdater = (updater: (character: Character) => Character) => void;
 type PlayTab = "dashboard" | "combat" | "social" | "skills" | "gear" | "spec";
 type AdvanceTab = "update" | "specs" | "skills" | "profile";
 
+interface SierraHistoryState {
+  sierraZero: true;
+  view: View;
+  activeId: string | null;
+  creationStep?: number;
+  playTab?: PlayTab;
+  advanceTab?: AdvanceTab;
+}
+
+const views: View[] = ["home", "create", "summary", "play", "advance"];
+const playTabs: PlayTab[] = ["dashboard", "combat", "social", "skills", "gear", "spec"];
+const advanceTabs: AdvanceTab[] = ["update", "specs", "skills", "profile"];
+
+function currentHistoryState(): SierraHistoryState | null {
+  const state = window.history.state as Partial<SierraHistoryState> | null;
+  if (!state?.sierraZero || !state.view || !views.includes(state.view)) return null;
+  return { ...state, sierraZero: true, view: state.view, activeId: typeof state.activeId === "string" ? state.activeId : null };
+}
+
+function pushHistoryState(patch: Partial<SierraHistoryState>) {
+  const current = currentHistoryState() ?? { sierraZero: true, view: "home", activeId: null };
+  window.history.pushState({ ...current, ...patch, sierraZero: true }, "");
+}
+
 const characteristicKeys: CharacteristicKey[] = ["brawn", "agility", "intellect", "cunning", "willpower", "presence"];
 
 const findArchetype = (id: string) => archetypes.find((record) => record.id === id)!;
@@ -67,8 +91,8 @@ function downloadBackup(characters: Character[], filename: string) {
 
 export default function App() {
   const [characters, setCharacters] = useState<Character[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [view, setView] = useState<View>("home");
+  const [activeId, setActiveId] = useState<string | null>(() => currentHistoryState()?.activeId ?? null);
+  const [view, setView] = useState<View>(() => currentHistoryState()?.view ?? "home");
   const [ready, setReady] = useState(false);
   const [transferNotice, setTransferNotice] = useState("");
   const [updateReady, setUpdateReady] = useState(false);
@@ -86,6 +110,31 @@ export default function App() {
     return () => window.removeEventListener(UPDATE_READY_EVENT, announce);
   }, []);
 
+  useEffect(() => {
+    if (!currentHistoryState()) {
+      window.history.replaceState({ sierraZero: true, view, activeId } satisfies SierraHistoryState, "");
+    }
+    const restoreRoute = (event: PopStateEvent) => {
+      const state = event.state as Partial<SierraHistoryState> | null;
+      if (state?.sierraZero && state.view && views.includes(state.view)) {
+        setActiveId(typeof state.activeId === "string" ? state.activeId : null);
+        setView(state.view);
+      } else {
+        setActiveId(null);
+        setView("home");
+      }
+    };
+    window.addEventListener("popstate", restoreRoute);
+    return () => window.removeEventListener("popstate", restoreRoute);
+  }, []);
+
+  const navigate = (nextView: View, nextActiveId: string | null = activeId) => {
+    if (nextView === view && nextActiveId === activeId) return;
+    window.history.pushState({ sierraZero: true, view: nextView, activeId: nextActiveId } satisfies SierraHistoryState, "");
+    setActiveId(nextActiveId);
+    setView(nextView);
+  };
+
   const active = characters.find((character) => character.id === activeId) ?? null;
   const updateActive = (updater: (character: Character) => Character) => {
     if (!active) return;
@@ -97,8 +146,7 @@ export default function App() {
   const beginCreation = () => {
     const draft = createCharacterDraft();
     setCharacters((current) => [draft, ...current]);
-    setActiveId(draft.id);
-    setView("create");
+    navigate("create", draft.id);
     void saveCharacter(draft);
   };
 
@@ -117,19 +165,19 @@ export default function App() {
 
   if (!ready) return <main className="loading">Opening personnel files...</main>;
   if (view === "home" || !active) return <><UpdateBanner visible={updateReady} /><Home characters={characters} beginCreation={beginCreation} notice={transferNotice} backup={() => downloadBackup(characters, "sierra-zero-roster-backup.json")} importBackup={importBackup} open={(character) => {
-    setActiveId(character.id); setView(character.status === "draft" ? "create" : "summary");
+    navigate(character.status === "draft" ? "create" : "summary", character.id);
   }} /></>;
 
   const archetype = findArchetype(active.build.archetypeId);
   const career = findCareer(active.build.careerId);
   return <><UpdateBanner visible={updateReady} /><main className="app-shell character-shell">
     <header className="character-header">
-      <button className="text-button" type="button" onClick={() => setView("home")}>Roster</button>
+      <button className="text-button" type="button" onClick={() => navigate("home", null)}>Roster</button>
       <div><p className="file-code">SZ / RESPONDER FILE</p><h1>{active.profile.name}</h1></div>
       <span className="xp-chip">{availableXp(active)} XP</span>
     </header>
     {view === "create" && <CreationView character={active} onUpdate={updateActive} onComplete={() => {
-      updateActive((character) => ({ ...character, status: "complete" })); setView("summary");
+      updateActive((character) => ({ ...character, status: "complete" })); navigate("summary", active.id);
     }} />}
     {view === "summary" && <section className="content-stack">
       <div className="identity-panel"><Portrait character={active} large /><div><p className="eyebrow">Active responder</p><h2>{active.profile.name}</h2><p>{archetype.name} · {career.name} · {active.build.specializationIds.map((id) => findSpecialization(id).name).join(" / ")}</p></div></div>
@@ -141,9 +189,9 @@ export default function App() {
     {view === "play" && <PlayView character={active} onUpdate={updateActive} />}
     {view === "advance" && <AdvanceView character={active} onUpdate={updateActive} />}
     {active.status === "complete" && <nav className="bottom-nav" aria-label="Character mode">
-      <button className={view === "summary" ? "active" : ""} onClick={() => setView("summary")}>Summary</button>
-      <button className={view === "play" ? "active" : ""} onClick={() => setView("play")}>Play</button>
-      <button className={view === "advance" ? "active" : ""} onClick={() => setView("advance")}>Advance</button>
+      <button className={view === "summary" ? "active" : ""} onClick={() => navigate("summary")}>Summary</button>
+      <button className={view === "play" ? "active" : ""} onClick={() => navigate("play")}>Play</button>
+      <button className={view === "advance" ? "active" : ""} onClick={() => navigate("advance")}>Advance</button>
     </nav>}
   </main></>;
 }
@@ -171,7 +219,23 @@ function Portrait({ character, large = false }: { character: Character; large?: 
 }
 
 function CreationView({ character, onUpdate, onComplete }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void; onComplete: () => void }) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(() => {
+    const saved = currentHistoryState()?.creationStep;
+    return typeof saved === "number" && saved >= 1 && saved <= 6 ? saved : 1;
+  });
+  useEffect(() => {
+    const restoreStep = (event: PopStateEvent) => {
+      const state = event.state as Partial<SierraHistoryState> | null;
+      if (state?.view !== "create") return;
+      setStep(typeof state.creationStep === "number" && state.creationStep >= 1 && state.creationStep <= 6 ? state.creationStep : 1);
+    };
+    window.addEventListener("popstate", restoreStep);
+    return () => window.removeEventListener("popstate", restoreStep);
+  }, []);
+  const goToStep = (nextStep: number) => {
+    pushHistoryState({ view: "create", activeId: character.id, creationStep: nextStep });
+    setStep(nextStep);
+  };
   const archetype = findArchetype(character.build.archetypeId);
   const career = findCareer(character.build.careerId);
   const specialization = findSpecialization(character.build.specializationIds[0]);
@@ -211,7 +275,7 @@ function CreationView({ character, onUpdate, onComplete }: { character: Characte
     {step === 4 && <GearPanel character={character} onUpdate={onUpdate} creation />}
     {step === 5 && <MotivationEditor character={character} onUpdate={onUpdate} />}
     {step === 6 && <section className="content-stack review-stack"><ProfileEditor character={character} onUpdate={onUpdate} /><section className="paper-panel"><p className="eyebrow">Review</p><h2>Resulting agent</h2><CharacteristicStrip values={derivedCharacteristics(character)} /><StatusGrid character={character} /><p><strong>{xp} XP unspent.</strong> Unspent XP is legal.</p><p><strong>Skills:</strong> {skills.filter((skill) => skillRank(character, skill.id) > 0).map((skill) => `${skill.name} ${skillRank(character, skill.id)}`).join(", ") || "None"}</p><p><strong>Gear:</strong> {character.inventory.map((instance) => findItem(instance.itemId).name).join(", ") || "None"}</p></section></section>}
-    <div className="wizard-actions"><button className="secondary" disabled={step === 1} onClick={() => setStep((current) => current - 1)}>Back</button>{step < 6 ? <button className="primary" disabled={step === 2 && !startingSkillsComplete(character)} onClick={() => setStep((current) => current + 1)}>Continue</button> : <button className="primary" disabled={!character.profile.name.trim()} onClick={onComplete}>Create agent</button>}</div>
+    <div className="wizard-actions"><button className="secondary" disabled={step === 1} onClick={() => window.history.back()}>Back</button>{step < 6 ? <button className="primary" disabled={step === 2 && !startingSkillsComplete(character)} onClick={() => goToStep(step + 1)}>Continue</button> : <button className="primary" disabled={!character.profile.name.trim()} onClick={onComplete}>Create agent</button>}</div>
   </section>;
 }
 
@@ -328,9 +392,26 @@ function InventoryRow({ character, instanceId, onUpdate }: { character: Characte
 }
 
 function PlayView({ character, onUpdate }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void }) {
-  const [tab, setTab] = useState<PlayTab>("dashboard");
+  const [tab, setTab] = useState<PlayTab>(() => {
+    const saved = currentHistoryState()?.playTab;
+    return saved && playTabs.includes(saved) ? saved : "dashboard";
+  });
+  useEffect(() => {
+    const restoreTab = (event: PopStateEvent) => {
+      const state = event.state as Partial<SierraHistoryState> | null;
+      if (state?.view !== "play") return;
+      setTab(state.playTab && playTabs.includes(state.playTab) ? state.playTab : "dashboard");
+    };
+    window.addEventListener("popstate", restoreTab);
+    return () => window.removeEventListener("popstate", restoreTab);
+  }, []);
+  const selectTab = (nextTab: PlayTab) => {
+    if (nextTab === tab) return;
+    pushHistoryState({ view: "play", activeId: character.id, playTab: nextTab });
+    setTab(nextTab);
+  };
   const labels: Array<[PlayTab, string]> = [["dashboard", "Dashboard"], ["combat", "Combat"], ["social", "Social"], ["skills", "Skills"], ["gear", "Gear"], ["spec", "Spec"]];
-  return <><Subnav items={labels} active={tab} onSelect={setTab} />{tab === "dashboard" && <Dashboard character={character} onUpdate={onUpdate} />}{tab === "combat" && <CombatView character={character} onUpdate={onUpdate} />}{tab === "social" && <SocialView character={character} onUpdate={onUpdate} />}{tab === "skills" && <SkillsReference character={character} />}{tab === "gear" && <section className="content-stack"><GearPanel character={character} onUpdate={onUpdate} /></section>}{tab === "spec" && <SpecReference character={character} />}</>;
+  return <><Subnav items={labels} active={tab} onSelect={selectTab} />{tab === "dashboard" && <Dashboard character={character} onUpdate={onUpdate} />}{tab === "combat" && <CombatView character={character} onUpdate={onUpdate} />}{tab === "social" && <SocialView character={character} onUpdate={onUpdate} />}{tab === "skills" && <SkillsReference character={character} />}{tab === "gear" && <section className="content-stack"><GearPanel character={character} onUpdate={onUpdate} /></section>}{tab === "spec" && <SpecReference character={character} />}</>;
 }
 
 function Subnav<T extends string>({ items, active, onSelect }: { items: Array<[T, string]>; active: T; onSelect: (value: T) => void }) {
@@ -384,9 +465,26 @@ function ResourceControls({ character, onUpdate, strainOnly = false }: { charact
 }
 
 function AdvanceView({ character, onUpdate }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void }) {
-  const [tab, setTab] = useState<AdvanceTab>("update");
+  const [tab, setTab] = useState<AdvanceTab>(() => {
+    const saved = currentHistoryState()?.advanceTab;
+    return saved && advanceTabs.includes(saved) ? saved : "update";
+  });
+  useEffect(() => {
+    const restoreTab = (event: PopStateEvent) => {
+      const state = event.state as Partial<SierraHistoryState> | null;
+      if (state?.view !== "advance") return;
+      setTab(state.advanceTab && advanceTabs.includes(state.advanceTab) ? state.advanceTab : "update");
+    };
+    window.addEventListener("popstate", restoreTab);
+    return () => window.removeEventListener("popstate", restoreTab);
+  }, []);
+  const selectTab = (nextTab: AdvanceTab) => {
+    if (nextTab === tab) return;
+    pushHistoryState({ view: "advance", activeId: character.id, advanceTab: nextTab });
+    setTab(nextTab);
+  };
   const labels: Array<[AdvanceTab, string]> = [["update", "Update"], ["specs", "Specs"], ["skills", "Skills"], ["profile", "Profile"]];
-  return <><Subnav items={labels} active={tab} onSelect={setTab} />{tab === "update" && <section className="content-stack"><SessionUpdatePanel character={character} onUpdate={onUpdate} /></section>}{tab === "specs" && <SpecializationAdvancement character={character} onUpdate={onUpdate} />}{tab === "skills" && <section className="content-stack"><SkillAdvancementPanel character={character} onUpdate={onUpdate} /></section>}{tab === "profile" && <section className="content-stack"><ProfileEditor character={character} onUpdate={onUpdate} /><MotivationEditor character={character} onUpdate={onUpdate} /></section>}</>;
+  return <><Subnav items={labels} active={tab} onSelect={selectTab} />{tab === "update" && <section className="content-stack"><SessionUpdatePanel character={character} onUpdate={onUpdate} /></section>}{tab === "specs" && <SpecializationAdvancement character={character} onUpdate={onUpdate} />}{tab === "skills" && <section className="content-stack"><SkillAdvancementPanel character={character} onUpdate={onUpdate} /></section>}{tab === "profile" && <section className="content-stack"><ProfileEditor character={character} onUpdate={onUpdate} /><MotivationEditor character={character} onUpdate={onUpdate} /></section>}</>;
 }
 
 function SpecializationAdvancement({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
