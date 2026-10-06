@@ -1,0 +1,411 @@
+import { useEffect, useMemo, useState } from "react";
+import { archetypes, attachments, careers, items, skills, specializations, talents } from "./data/canonical";
+import { maneuvers } from "./data/maneuvers";
+import {
+  applySessionUpdate,
+  applyStartingSkillSelections,
+  applyStrain,
+  applyWounds,
+  availableXp,
+  canAcquireNormally,
+  canIncreaseCharacteristic,
+  canIncreaseSkill,
+  canInstallAttachment,
+  createCharacterDraft,
+  decreaseCharacteristic,
+  decreaseSkill,
+  defenses,
+  derivedCharacteristics,
+  increaseCharacteristic,
+  increaseSkill,
+  itemFavorCost,
+  newEncounter,
+  nextCharacteristicCost,
+  nextSkillRankCost,
+  nextTurn,
+  remainingHardPoints,
+  removeAttachmentFromDraft,
+  removeInventoryFromDraft,
+  setExtraManeuver,
+  setItemEquipped,
+  skillPool,
+  skillRank,
+  specializationAcquisitionCost,
+  talentRanks,
+  thresholds
+} from "./engine/rules";
+import { TalentTree } from "./components/TalentTree";
+import { listCharacters, saveCharacter, saveCharacters } from "./storage/db";
+import { mergeImportedCharacters, parseBackup, serializeBackup } from "./storage/transfer";
+import type { AcquisitionPayment, Character, CharacteristicKey, TalentRecord } from "./types";
+import "./styles.css";
+
+type View = "home" | "create" | "summary" | "play" | "advance";
+type CharacterUpdater = (updater: (character: Character) => Character) => void;
+type PlayTab = "dashboard" | "combat" | "social" | "skills" | "gear" | "spec";
+type AdvanceTab = "update" | "specs" | "skills" | "profile";
+
+const characteristicKeys: CharacteristicKey[] = ["brawn", "agility", "intellect", "cunning", "willpower", "presence"];
+
+const poolLabel = (pool: ReturnType<typeof skillPool>) => `${"Y".repeat(pool.proficiency)}${"G".repeat(pool.ability)}` || "-";
+const findArchetype = (id: string) => archetypes.find((record) => record.id === id)!;
+const findCareer = (id: string) => careers.find((record) => record.id === id)!;
+const findSpecialization = (id: string) => specializations.find((record) => record.id === id)!;
+const findItem = (id: string) => items.find((record) => record.id === id)!;
+const skillName = (id: string) => skills.find((record) => record.id === id)?.name ?? id;
+
+function downloadBackup(characters: Character[], filename: string) {
+  const url = URL.createObjectURL(new Blob([serializeBackup(characters)], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export default function App() {
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [view, setView] = useState<View>("home");
+  const [ready, setReady] = useState(false);
+  const [transferNotice, setTransferNotice] = useState("");
+
+  useEffect(() => {
+    listCharacters().then((records) => {
+      setCharacters(records.sort((a, b) => b.metadata.updatedAt.localeCompare(a.metadata.updatedAt)));
+      setReady(true);
+    });
+  }, []);
+
+  const active = characters.find((character) => character.id === activeId) ?? null;
+  const updateActive = (updater: (character: Character) => Character) => {
+    if (!active) return;
+    const updated = updater(structuredClone(active));
+    updated.metadata.updatedAt = new Date().toISOString();
+    setCharacters((current) => current.map((character) => character.id === updated.id ? updated : character));
+    void saveCharacter(updated);
+  };
+  const beginCreation = () => {
+    const draft = createCharacterDraft();
+    setCharacters((current) => [draft, ...current]);
+    setActiveId(draft.id);
+    setView("create");
+    void saveCharacter(draft);
+  };
+
+  const importBackup = async (file?: File) => {
+    if (!file) return;
+    try {
+      const imported = parseBackup(await file.text());
+      const merged = mergeImportedCharacters(characters, imported);
+      await saveCharacters(imported);
+      setCharacters(merged);
+      setTransferNotice(`Imported ${imported.length} character${imported.length === 1 ? "" : "s"}. Matching files were replaced.`);
+    } catch (error) {
+      setTransferNotice(error instanceof Error ? error.message : "Import failed.");
+    }
+  };
+
+  if (!ready) return <main className="loading">Opening personnel files...</main>;
+  if (view === "home" || !active) return <Home characters={characters} beginCreation={beginCreation} notice={transferNotice} backup={() => downloadBackup(characters, "sierra-zero-roster-backup.json")} importBackup={importBackup} open={(character) => {
+    setActiveId(character.id); setView(character.status === "draft" ? "create" : "summary");
+  }} />;
+
+  const archetype = findArchetype(active.build.archetypeId);
+  const career = findCareer(active.build.careerId);
+  return <main className="app-shell character-shell">
+    <header className="character-header">
+      <button className="text-button" type="button" onClick={() => setView("home")}>Roster</button>
+      <div><p className="file-code">SZ / RESPONDER FILE</p><h1>{active.profile.name}</h1></div>
+      <span className="xp-chip">{availableXp(active)} XP</span>
+    </header>
+    {view === "create" && <CreationView character={active} onUpdate={updateActive} onComplete={() => {
+      updateActive((character) => ({ ...character, status: "complete" })); setView("summary");
+    }} />}
+    {view === "summary" && <section className="content-stack">
+      <div className="identity-panel"><Portrait character={active} large /><div><p className="eyebrow">Active responder</p><h2>{active.profile.name}</h2><p>{archetype.name} · {career.name} · {active.build.specializationIds.map((id) => findSpecialization(id).name).join(" / ")}</p></div></div>
+      <StatusGrid character={active} />
+      <section className="paper-panel"><p className="file-code">ARCHETYPE CAPABILITY</p><h3>{archetype.abilities[0]?.name}</h3><p>{archetype.abilities[0]?.rules}</p></section>
+      <MotivationSummary character={active} />
+      <button className="secondary" onClick={() => downloadBackup([active], `${active.profile.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "sierra-zero-agent"}.json`)}>Export this character</button>
+    </section>}
+    {view === "play" && <PlayView character={active} onUpdate={updateActive} />}
+    {view === "advance" && <AdvanceView character={active} onUpdate={updateActive} />}
+    {active.status === "complete" && <nav className="bottom-nav" aria-label="Character mode">
+      <button className={view === "summary" ? "active" : ""} onClick={() => setView("summary")}>Summary</button>
+      <button className={view === "play" ? "active" : ""} onClick={() => setView("play")}>Play</button>
+      <button className={view === "advance" ? "active" : ""} onClick={() => setView("advance")}>Advance</button>
+    </nav>}
+  </main>;
+}
+
+function Home({ characters, beginCreation, open, backup, importBackup, notice }: { characters: Character[]; beginCreation: () => void; open: (character: Character) => void; backup: () => void; importBackup: (file?: File) => void; notice: string }) {
+  return <main className="app-shell home-screen">
+    <header className="masthead"><div className="mark">SZ</div><div><p className="eyebrow">Office of Exceptional Contingency</p><h1>Sierra Zero</h1><p className="deck">Character Manager</p></div></header>
+    <section className="roster"><div className="section-heading"><div><p className="file-code">FILE INDEX / LOCAL</p><h2>Agent roster</h2></div><button className="primary" onClick={beginCreation}>Create new agent</button></div><div className="roster-tools"><button className="secondary" disabled={!characters.length} onClick={backup}>Backup all characters</button><label className="secondary file-button">Import backup<input type="file" accept="application/json,.json" onChange={(event) => { importBackup(event.target.files?.[0]); event.target.value = ""; }} /></label></div>{notice && <p className="transfer-notice" role="status">{notice}</p>}
+      {characters.length === 0 ? <div className="empty-state"><span className="stamp">NO ACTIVE FILES</span><p>Create the first local character record. Drafts and completed agents remain on this device.</p></div> :
+        <div className="dossier-list">{characters.map((character) => <button type="button" className="dossier-card" key={character.id} onClick={() => open(character)}><Portrait character={character} /><span><span className="file-code">{character.status === "draft" ? "DRAFT" : "ACTIVE RESPONDER"}</span><strong>{character.profile.name}</strong><small>{findArchetype(character.build.archetypeId)?.name} / {findCareer(character.build.careerId)?.name}</small></span></button>)}</div>}
+    </section>
+  </main>;
+}
+
+function Portrait({ character, large = false }: { character: Character; large?: boolean }) {
+  const className = large ? "portrait-large" : "portrait-placeholder";
+  return character.profile.portraitDataUrl
+    ? <img className={`${className} portrait-image`} src={character.profile.portraitDataUrl} style={{ objectPosition: `50% ${character.profile.portraitFocusY ?? 50}%` }} alt="" />
+    : <span className={className}>{character.profile.name.slice(0, 1).toUpperCase()}</span>;
+}
+
+function CreationView({ character, onUpdate, onComplete }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void; onComplete: () => void }) {
+  const [step, setStep] = useState(1);
+  const archetype = findArchetype(character.build.archetypeId);
+  const career = findCareer(character.build.careerId);
+  const specialization = findSpecialization(character.build.specializationIds[0]);
+  const xp = availableXp(character);
+  const chooseArchetype = (id: string) => onUpdate((draft) => {
+    draft.build.archetypeId = id;
+    draft.build.purchases.characteristicRanks = {};
+    draft.build.purchases.skillRanks = {};
+    draft.build.purchases.talentNodeIds = [];
+    draft.build.startingSkillSelections.archetypeSkillIds = [];
+    draft.build.startingSkillSelections.archetypeSkillGroups = {};
+    return applyStartingSkillSelections(draft, draft.build.startingSkillSelections);
+  });
+  const chooseCareer = (id: string) => onUpdate((draft) => {
+    const nextCareer = findCareer(id);
+    draft.build.careerId = id;
+    draft.build.specializationIds = [nextCareer.specializationIds[0]];
+    draft.build.purchases.talentNodeIds = [];
+    draft.build.purchases.skillRanks = {};
+    draft.build.purchases.specializationIds = [];
+    draft.build.startingSkillSelections.careerSkillIds = [];
+    draft.build.startingSkillSelections.specializationSkillIds = [];
+    return applyStartingSkillSelections(draft, draft.build.startingSkillSelections);
+  });
+  const chooseSpecialization = (id: string) => onUpdate((draft) => {
+    draft.build.specializationIds = [id];
+    draft.build.purchases.talentNodeIds = [];
+    draft.build.purchases.skillRanks = {};
+    draft.build.startingSkillSelections.specializationSkillIds = [];
+    return applyStartingSkillSelections(draft, draft.build.startingSkillSelections);
+  });
+  return <section className="content-stack creation-flow">
+    <div className="progress-line"><span style={{ width: `${step * (100 / 6)}%` }} /></div><p className="file-code">INTAKE / STEP {step} OF 6</p>
+    {step === 1 && <section className="paper-panel selection-card selected"><p className="eyebrow">Archetype</p><label className="field-label">Choose archetype<select value={archetype.id} onChange={(event) => chooseArchetype(event.target.value)}>{archetypes.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label><h2>{archetype.name}</h2><p>{archetype.description}</p><CharacteristicStrip values={archetype.baseCharacteristics} /><p><strong>{archetype.startingXp} starting XP</strong> · Wounds {archetype.woundBase} + Brawn · Strain {archetype.strainBase} + Willpower</p><p>{archetype.startingSkillInstructions}</p><h3>{archetype.abilities[0]?.name}</h3><p>{archetype.abilities[0]?.rules}</p></section>}
+    {step === 2 && <section className="paper-panel selection-card selected"><p className="eyebrow">Career and starting specialization</p><div className="update-fields"><label className="field-label">Career<select value={career.id} onChange={(event) => chooseCareer(event.target.value)}>{careers.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label><label className="field-label">Starting specialization<select value={specialization.id} onChange={(event) => chooseSpecialization(event.target.value)}>{career.specializationIds.map((id) => <option key={id} value={id}>{findSpecialization(id).name}</option>)}</select></label></div><p className="skill-string">Career skills: {career.careerSkillIds.map(skillName).join(", ")}</p><p className="skill-string">Bonus career skills: {specialization.bonusCareerSkillIds.map(skillName).join(", ")}</p><StartingSkillChoices character={character} onUpdate={onUpdate} /></section>}
+    {step === 3 && <StartingXpPanel character={character} onUpdate={onUpdate} />}
+    {step === 4 && <GearPanel character={character} onUpdate={onUpdate} creation />}
+    {step === 5 && <MotivationEditor character={character} onUpdate={onUpdate} />}
+    {step === 6 && <section className="content-stack review-stack"><ProfileEditor character={character} onUpdate={onUpdate} /><section className="paper-panel"><p className="eyebrow">Review</p><h2>Resulting agent</h2><CharacteristicStrip values={derivedCharacteristics(character)} /><StatusGrid character={character} /><p><strong>{xp} XP unspent.</strong> Unspent XP is legal.</p><p><strong>Skills:</strong> {skills.filter((skill) => skillRank(character, skill.id) > 0).map((skill) => `${skill.name} ${skillRank(character, skill.id)}`).join(", ") || "None"}</p><p><strong>Gear:</strong> {character.inventory.map((instance) => findItem(instance.itemId).name).join(", ") || "None"}</p></section></section>}
+    <div className="wizard-actions"><button className="secondary" disabled={step === 1} onClick={() => setStep((current) => current - 1)}>Back</button>{step < 6 ? <button className="primary" disabled={step === 2 && !startingSkillsComplete(character)} onClick={() => setStep((current) => current + 1)}>Continue</button> : <button className="primary" disabled={!character.profile.name.trim()} onClick={onComplete}>Create agent</button>}</div>
+  </section>;
+}
+
+function StartingXpPanel({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  const specialization = findSpecialization(character.build.specializationIds[0]);
+  return <section className="content-stack nested-stack"><div className="section-heading"><div><p className="eyebrow">Starting XP</p><h2>Shape the agent</h2></div><strong>{availableXp(character)} XP available</strong></div><CharacteristicPurchasePanel character={character} onUpdate={onUpdate} /><SkillAdvancementPanel character={character} onUpdate={onUpdate} creation /><section><h2>{specialization.name}</h2><TalentTree specialization={specialization} purchasedIds={character.build.purchases.talentNodeIds} availableXp={availableXp(character)} interactive onChange={(ids) => onUpdate((draft) => { draft.build.purchases.talentNodeIds = ids; return draft; })} /></section></section>;
+}
+
+function CharacteristicPurchasePanel({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  const values = derivedCharacteristics(character);
+  const base = findArchetype(character.build.archetypeId).baseCharacteristics;
+  return <section className="paper-panel"><p className="eyebrow">Characteristics</p><h2>Creation-only increases</h2><div className="advancement-grid">{characteristicKeys.map((key) => <div className="advance-row" key={key}><span><strong>{key}</strong><small>Base {base[key]} · Next {nextCharacteristicCost(character, key)} XP</small></span><div className="rank-controls"><button className="secondary" disabled={(character.build.purchases.characteristicRanks[key] ?? 0) === 0} onClick={() => onUpdate((draft) => decreaseCharacteristic(draft, key))}>−</button><b>{values[key]}</b><button className="secondary" disabled={!canIncreaseCharacteristic(character, key)} onClick={() => onUpdate((draft) => increaseCharacteristic(draft, key))}>+</button></div></div>)}</div></section>;
+}
+
+function SkillAdvancementPanel({ character, onUpdate, creation = false }: { character: Character; onUpdate: CharacterUpdater; creation?: boolean }) {
+  return <section className="paper-panel"><div className="section-heading"><div><p className="eyebrow">Skills</p><h2>{creation ? "Starting skill XP" : "Advance skills"}</h2></div><strong>{availableXp(character)} XP</strong></div><div className="advancement-grid">{skills.map((skill) => { const purchased = character.build.purchases.skillRanks[skill.id] ?? 0; return <div className="advance-row" key={skill.id}><span><strong>{skill.name}</strong><small>{skill.characteristic} · {poolLabel(skillPool(character, skill.id))} · Next {nextSkillRankCost(character, skill.id)} XP</small></span><div className="rank-controls"><button className="secondary" disabled={purchased === 0} onClick={() => onUpdate((draft) => decreaseSkill(draft, skill.id))}>−</button><b>{skillRank(character, skill.id)}</b><button className="secondary" disabled={!canIncreaseSkill(character, skill.id, creation)} onClick={() => onUpdate((draft) => increaseSkill(draft, skill.id, creation))}>+</button></div></div>; })}</div></section>;
+}
+
+function startingSkillsComplete(character: Character): boolean {
+  const archetype = findArchetype(character.build.archetypeId);
+  const s = character.build.startingSkillSelections;
+  const archetypeComplete = archetype.startingSkillGroups?.length
+    ? archetype.startingSkillGroups.every((group) => (s.archetypeSkillGroups?.[group.id] ?? []).length === group.choiceCount)
+    : s.archetypeSkillIds.length === archetype.startingSkillChoiceCount;
+  return archetypeComplete && s.careerSkillIds.length === 4 && s.specializationSkillIds.length === 2;
+}
+
+function StartingSkillChoices({ character, onUpdate }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void }) {
+  const archetype = findArchetype(character.build.archetypeId);
+  const career = findCareer(character.build.careerId);
+  const specialization = findSpecialization(character.build.specializationIds[0]);
+  const selections = character.build.startingSkillSelections;
+  type FlatGroup = "archetypeSkillIds" | "careerSkillIds" | "specializationSkillIds";
+  const toggle = (key: FlatGroup, skillId: string, limit: number) => onUpdate((draft) => {
+    const current = draft.build.startingSkillSelections[key];
+    const next = current.includes(skillId) ? current.filter((id) => id !== skillId) : current.length < limit ? [...current, skillId] : current;
+    return applyStartingSkillSelections(draft, { ...draft.build.startingSkillSelections, [key]: next });
+  });
+  const toggleArchetypeGroup = (groupId: string, skillId: string, limit: number) => onUpdate((draft) => {
+    const groups = draft.build.startingSkillSelections.archetypeSkillGroups ?? {};
+    const current = groups[groupId] ?? [];
+    const next = current.includes(skillId) ? current.filter((id) => id !== skillId) : current.length < limit ? [...current, skillId] : current;
+    return applyStartingSkillSelections(draft, {
+      ...draft.build.startingSkillSelections,
+      archetypeSkillGroups: { ...groups, [groupId]: next }
+    });
+  });
+  const group = (label: string, key: FlatGroup, ids: string[], limit: number) => <div className="choice-group"><p><strong>{label}</strong><small>{selections[key].length} / {limit} selected</small></p><div className="choice-chips">{ids.map((id) => { const selected = selections[key].includes(id); return <button key={`${key}-${id}`} type="button" className={selected ? "selected" : ""} disabled={!selected && (character.build.grantedSkillRanks[id] ?? 0) >= 2} onClick={() => toggle(key, id, limit)}>{skillName(id)}</button>; })}</div></div>;
+  const archetypeGroups = (archetype.startingSkillGroups ?? []).map((choice) => {
+    const selected = selections.archetypeSkillGroups?.[choice.id] ?? [];
+    const startingCareerSkills = new Set([...career.careerSkillIds, ...specialization.bonusCareerSkillIds]);
+    const options = choice.options ?? choice.eligibleSkillIds
+      .filter((id) => !choice.excludesCareerSkills || !startingCareerSkills.has(id))
+      .map((id) => ({ id, label: skillName(id), skillId: id }));
+    return <div className="choice-group" key={choice.id}><p><strong>{choice.label} ({choice.rank === 1 ? "rank 1" : `rank ${choice.rank}`})</strong><small>{selected.length} / {choice.choiceCount} selected</small></p><div className="choice-chips">{options.map((option) => { const isSelected = selected.includes(option.id); return <button key={`${choice.id}-${option.id}`} type="button" className={isSelected ? "selected" : ""} disabled={!isSelected && (character.build.grantedSkillRanks[option.skillId] ?? 0) + choice.rank > 2} onClick={() => toggleArchetypeGroup(choice.id, option.id, choice.choiceCount)}>{option.label}</button>; })}</div></div>;
+  });
+  return <div className="starting-skills"><p className="instruction">Choose the archetype options shown below, four career skills, and two starting-specialization skills. Free ranks may not exceed rank 2.</p>{archetypeGroups.length > 0 ? archetypeGroups : archetype.startingSkillChoiceCount > 0 && group(archetype.startingSkillInstructions ?? `${archetype.name} skills`, "archetypeSkillIds", archetype.startingSkillChoiceIds, archetype.startingSkillChoiceCount)}{Object.keys(archetype.fixedStartingSkillRanks ?? {}).length > 0 && <p><strong>Automatic archetype ranks:</strong> {Object.entries(archetype.fixedStartingSkillRanks ?? {}).map(([id, rank]) => `${skillName(id)} ${rank}`).join(", ")}</p>}{group(`${career.name} career skills`, "careerSkillIds", career.careerSkillIds, 4)}{group(`${specialization.name} skills`, "specializationSkillIds", specialization.bonusCareerSkillIds, 2)}</div>;
+}
+
+function GearPanel({ character, onUpdate, creation = false }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void; creation?: boolean }) {
+  const ordinaryItems = useMemo(() => items.filter((item) => item.id !== "unarmed"), []);
+  const [selectedId, setSelectedId] = useState(ordinaryItems[0]?.id ?? "");
+  const selected = findItem(selectedId);
+  const favor = itemFavorCost(selected);
+  const addItem = (payment: AcquisitionPayment) => onUpdate((draft) => {
+    if (payment !== "reward" && !canAcquireNormally(selected.access)) return draft;
+    if (payment === "cash" && draft.resources.money < selected.price) return draft;
+    if (payment === "favor" && draft.resources.favor < favor) return draft;
+    if (payment === "cash") draft.resources.money -= selected.price;
+    if (payment === "favor") draft.resources.favor -= favor;
+    const amount = payment === "cash" ? selected.price : payment === "favor" ? favor : 0;
+    draft.inventory.push({ instanceId: crypto.randomUUID(), itemId: selected.id, equipped: false, attachmentIds: [], acquisition: { payment, amount }, attachmentAcquisitions: {} });
+    return draft;
+  });
+  return <section className="paper-panel"><div className="section-heading"><div><p className="eyebrow">{creation ? "Starting gear" : "Gear"}</p><h2>Equipment catalogue</h2></div><strong>${character.resources.money} · {character.resources.favor} Favor</strong></div>
+    <label className="field-label">Catalogue item<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{ordinaryItems.map((item) => <option key={item.id} value={item.id}>{item.name} — {item.category} — {item.access}</option>)}</select></label>
+    <div className="gear-card"><div><strong>{selected.name}</strong><small>${selected.price} · Rarity {selected.rarity} · Enc {selected.encumbrance} · {selected.hardPoints} HP · {selected.source}</small><p>{selected.description}</p></div><div className="inline-actions">{canAcquireNormally(selected.access) ? <><button className="secondary" disabled={character.resources.money < selected.price} onClick={() => addItem("cash")}>Buy ${selected.price}</button><button className="secondary" disabled={character.resources.favor < favor} onClick={() => addItem("favor")}>Requisition {favor} Favor</button></> : <button className="secondary" onClick={() => addItem("reward")}>Add GM reward</button>}</div></div>
+    {character.inventory.length === 0 ? <p>No gear acquired.</p> : character.inventory.map((instance) => <InventoryRow key={instance.instanceId} character={character} instanceId={instance.instanceId} onUpdate={onUpdate} />)}
+  </section>;
+}
+
+function InventoryRow({ character, instanceId, onUpdate }: { character: Character; instanceId: string; onUpdate: (updater: (character: Character) => Character) => void }) {
+  const instance = character.inventory.find((record) => record.instanceId === instanceId)!;
+  const item = findItem(instance.itemId);
+  const eligible = attachments.filter((attachment) => attachment.eligibleItemIds.includes(item.id) && !instance.attachmentIds.includes(attachment.id));
+  const [attachmentId, setAttachmentId] = useState(eligible[0]?.id ?? "");
+  const attachment = attachments.find((record) => record.id === attachmentId);
+  const install = (payment: AcquisitionPayment) => {
+    if (!attachment) return;
+    onUpdate((draft) => {
+      if (!canInstallAttachment(draft, instanceId, attachment.id)) return draft;
+      const favor = itemFavorCost(attachment);
+      if (payment !== "reward" && !canAcquireNormally(attachment.access)) return draft;
+      if (payment === "cash" && draft.resources.money < attachment.price) return draft;
+      if (payment === "favor" && draft.resources.favor < favor) return draft;
+      if (payment === "cash") draft.resources.money -= attachment.price;
+      if (payment === "favor") draft.resources.favor -= favor;
+      const target = draft.inventory.find((record) => record.instanceId === instanceId)!;
+      target.attachmentIds.push(attachment.id);
+      target.attachmentAcquisitions ??= {};
+      target.attachmentAcquisitions[attachment.id] = { payment, amount: payment === "cash" ? attachment.price : payment === "favor" ? favor : 0 };
+      return draft;
+    });
+  };
+  return <div className="inventory-row"><div><strong>{item.name}</strong><small>{remainingHardPoints(character, instanceId)} HP remaining · {instance.equipped ? "Equipped" : "Carried"}</small>{instance.attachmentIds.map((id) => { const record = attachments.find((candidate) => candidate.id === id)!; return <div className="installed-attachment" key={id}><p><strong>{record.name}:</strong> {record.effect}</p>{character.status === "draft" && <button className="text-button" onClick={() => onUpdate((draft) => removeAttachmentFromDraft(draft, instanceId, id))}>Remove and refund</button>}</div>; })}</div><div className="inline-actions"><button className={instance.equipped ? "primary" : "secondary"} onClick={() => onUpdate((draft) => setItemEquipped(draft, instanceId, !instance.equipped))}>{instance.equipped ? "Equipped" : "Equip"}</button>{character.status === "draft" && <button className="secondary" onClick={() => onUpdate((draft) => removeInventoryFromDraft(draft, instanceId))}>Remove and refund</button>}{eligible.length > 0 && <><select value={attachmentId} onChange={(event) => setAttachmentId(event.target.value)}>{eligible.map((record) => <option key={record.id} value={record.id}>{record.name} ({record.hardPoints} HP)</option>)}</select>{attachment && (canAcquireNormally(attachment.access) ? <><button className="secondary" disabled={character.resources.money < attachment.price || !canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("cash")}>Install ${attachment.price}</button><button className="secondary" disabled={character.resources.favor < itemFavorCost(attachment) || !canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("favor")}>Install {itemFavorCost(attachment)} Favor</button></> : <button className="secondary" disabled={!canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("reward")}>Install reward</button>)}</>}</div></div>;
+}
+
+function PlayView({ character, onUpdate }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void }) {
+  const [tab, setTab] = useState<PlayTab>("dashboard");
+  const labels: Array<[PlayTab, string]> = [["dashboard", "Dashboard"], ["combat", "Combat"], ["social", "Social"], ["skills", "Skills"], ["gear", "Gear"], ["spec", "Spec"]];
+  return <><Subnav items={labels} active={tab} onSelect={setTab} />{tab === "dashboard" && <Dashboard character={character} onUpdate={onUpdate} />}{tab === "combat" && <CombatView character={character} onUpdate={onUpdate} />}{tab === "social" && <SocialView character={character} onUpdate={onUpdate} />}{tab === "skills" && <SkillsReference character={character} />}{tab === "gear" && <section className="content-stack"><GearPanel character={character} onUpdate={onUpdate} /></section>}{tab === "spec" && <SpecReference character={character} />}</>;
+}
+
+function Subnav<T extends string>({ items, active, onSelect }: { items: Array<[T, string]>; active: T; onSelect: (value: T) => void }) {
+  return <nav className="mode-tabs">{items.map(([id, label]) => <button key={id} className={active === id ? "active" : ""} onClick={() => onSelect(id)}>{label}</button>)}</nav>;
+}
+
+function Dashboard({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  const equipped = character.inventory.find((instance) => instance.equipped && findItem(instance.itemId).weapon);
+  return <section className="content-stack"><div className="section-heading"><div><p className="file-code">PLAY / DASHBOARD</p><h2>Operational status</h2></div><button className="secondary" onClick={() => onUpdate(newEncounter)}>New encounter</button></div><StatusGrid character={character} /><section className="paper-panel"><p className="eyebrow">Primary weapon</p>{equipped ? <WeaponCard character={character} itemId={equipped.itemId} /> : <p>Equip a weapon in Gear to place it here.</p>}</section><section className="paper-panel"><p className="eyebrow">Common checks</p>{["cool", "discipline", "vigilance"].map((id) => <SkillRow key={id} character={character} skillId={id} />)}</section><MotivationSummary character={character} /><TalentReferenceList character={character} onUpdate={onUpdate} filter={(talent) => talent.usage !== "none" || talent.activation === "incidental"} title="Reminders" /></section>;
+}
+
+function CombatView({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  const weapons = character.inventory.filter((instance) => instance.equipped && findItem(instance.itemId).weapon).slice(0, 3);
+  const check = character.usage.turnChecklist;
+  return <section className="content-stack"><div><p className="file-code">PLAY / COMBAT</p><h2>Combat reference</h2></div><ResourceControls character={character} onUpdate={onUpdate} /><StatusGrid character={character} /><section className="paper-panel"><p className="eyebrow">Turn checklist</p><div className="turn-checks"><label><input type="checkbox" checked={check.action} onChange={(event) => onUpdate((draft) => { draft.usage.turnChecklist.action = event.target.checked; return draft; })} /> Action</label><label><input type="checkbox" checked={check.maneuver} onChange={(event) => onUpdate((draft) => { draft.usage.turnChecklist.maneuver = event.target.checked; return draft; })} /> Maneuver</label><label><input type="checkbox" checked={check.extraManeuver} onChange={(event) => onUpdate((draft) => setExtraManeuver(draft, event.target.checked))} /> Extra Maneuver (2 Strain)</label></div><button className="primary" onClick={() => onUpdate(nextTurn)}>Next turn</button></section><section className="paper-panel"><p className="eyebrow">Equipped weapons</p>{weapons.length ? weapons.map((instance) => <WeaponCard key={instance.instanceId} character={character} itemId={instance.itemId} />) : <p>No equipped weapons.</p>}</section><section className="paper-panel"><p className="eyebrow">Maneuvers</p>{maneuvers.map((maneuver) => <details key={maneuver.id}><summary>{maneuver.name} — {maneuver.summary}</summary><p>{maneuver.rules}</p></details>)}</section><TalentReferenceList character={character} onUpdate={onUpdate} filter={(talent) => talent.tags.includes("combat")} title="Combat talents" /></section>;
+}
+
+function SocialView({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  return <section className="content-stack"><div><p className="file-code">PLAY / SOCIAL</p><h2>Social encounter</h2></div><ResourceControls character={character} onUpdate={onUpdate} strainOnly /><MotivationSummary character={character} indicators /><section className="paper-panel"><p className="eyebrow">Social pools</p>{["charm", "coercion", "deception", "leadership", "negotiation", "cool", "discipline"].map((id) => <SkillRow key={id} character={character} skillId={id} />)}</section><TalentReferenceList character={character} onUpdate={onUpdate} filter={(talent) => talent.tags.includes("social")} title="Social talents" /></section>;
+}
+
+function SkillsReference({ character }: { character: Character }) {
+  const ranks = talentRanks(character);
+  return <section className="content-stack"><div><p className="file-code">PLAY / SKILLS</p><h2>Complete skill reference</h2></div><section className="paper-panel">{skills.map((skill) => { const linked = talents.filter((talent) => ranks[talent.id] && talent.rules.toLowerCase().includes(skill.name.toLowerCase())); return <details key={skill.id}><summary>{skill.name} · rank {skillRank(character, skill.id)} · {skill.characteristic} · {poolLabel(skillPool(character, skill.id))}</summary><p>Characteristic {derivedCharacteristics(character)[skill.characteristic]}, skill rank {skillRank(character, skill.id)}. Permanent values only.</p>{linked.map((talent) => <details key={talent.id}><summary>{talent.name}</summary><p>{talent.rules}</p></details>)}</details>; })}</section></section>;
+}
+
+function SpecReference({ character }: { character: Character }) {
+  return <section className="content-stack"><div><p className="file-code">PLAY / SPECIALIZATIONS</p><h2>Owned trees</h2></div>{character.build.specializationIds.map((id) => { const specialization = findSpecialization(id); const nodeIds = new Set(specialization.nodes.map((node) => node.id)); return <section key={id}><h2>{specialization.name}</h2><TalentTree specialization={specialization} purchasedIds={character.build.purchases.talentNodeIds.filter((nodeId) => nodeIds.has(nodeId))} availableXp={0} interactive={false} onChange={() => undefined} /></section>; })}<TalentReferenceList character={character} title="All owned talents" /></section>;
+}
+
+function SkillRow({ character, skillId }: { character: Character; skillId: string }) {
+  const skill = skills.find((record) => record.id === skillId)!;
+  return <div className="skill-row"><span><strong>{skill.name}</strong><small>{skill.characteristic} · rank {skillRank(character, skill.id)}</small></span><b>{poolLabel(skillPool(character, skill.id))}</b></div>;
+}
+
+function WeaponCard({ character, itemId }: { character: Character; itemId: string }) {
+  const item = findItem(itemId);
+  if (!item.weapon) return null;
+  return <details className="weapon-card"><summary>{item.name} · {poolLabel(skillPool(character, item.weapon.skillId))}</summary><p>{skillName(item.weapon.skillId)} · Damage {item.weapon.damage} · Critical {item.weapon.critical} · Range {item.weapon.range}{item.weapon.qualities.length ? ` · ${item.weapon.qualities.join(", ")}` : ""}</p><p>{item.description}</p></details>;
+}
+
+function TalentReferenceList({ character, onUpdate, filter = () => true, title }: { character: Character; onUpdate?: CharacterUpdater; filter?: (talent: TalentRecord) => boolean; title: string }) {
+  const ranks = talentRanks(character);
+  const owned = talents.filter((talent) => ranks[talent.id] && filter(talent));
+  return <section className="paper-panel"><p className="eyebrow">{title}</p>{owned.length ? owned.map((talent) => { const limited = talent.usage === "session" || talent.usage === "encounter"; const key = talent.usage === "session" ? "sessionTalentIds" : "encounterTalentIds"; const checked = character.usage[key].includes(talent.id); return <details key={talent.id}><summary>{talent.name}{talent.ranked ? ` ${ranks[talent.id]}` : ""} · {talent.activation}{limited && onUpdate ? <input aria-label={`${talent.name} used`} type="checkbox" checked={checked} onClick={(event) => event.stopPropagation()} onChange={(event) => onUpdate((draft) => { const current = draft.usage[key]; draft.usage[key] = event.target.checked ? [...new Set([...current, talent.id])] : current.filter((id) => id !== talent.id); return draft; })} /> : null}</summary><p>{talent.rules}</p></details>; }) : <p>No matching purchased talents.</p>}</section>;
+}
+
+function ResourceControls({ character, onUpdate, strainOnly = false }: { character: Character; onUpdate: CharacterUpdater; strainOnly?: boolean }) {
+  const status = thresholds(character);
+  return <section className="paper-panel resource-controls">{!strainOnly && <div><span>Wounds</span><div className="rank-controls"><button className="secondary" onClick={() => onUpdate((draft) => applyWounds(draft, -1))}>−</button><b>{character.resources.wounds} / {status.wounds}</b><button className="secondary" onClick={() => onUpdate((draft) => applyWounds(draft, 1))}>+</button></div></div>}<div><span>Strain</span><div className="rank-controls"><button className="secondary" onClick={() => onUpdate((draft) => applyStrain(draft, -1))}>−</button><b>{character.resources.strain} / {status.strain}</b><button className="secondary" onClick={() => onUpdate((draft) => applyStrain(draft, 1))}>+</button></div></div></section>;
+}
+
+function AdvanceView({ character, onUpdate }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void }) {
+  const [tab, setTab] = useState<AdvanceTab>("update");
+  const labels: Array<[AdvanceTab, string]> = [["update", "Update"], ["specs", "Specs"], ["skills", "Skills"], ["profile", "Profile"]];
+  return <><Subnav items={labels} active={tab} onSelect={setTab} />{tab === "update" && <section className="content-stack"><SessionUpdatePanel character={character} onUpdate={onUpdate} /></section>}{tab === "specs" && <SpecializationAdvancement character={character} onUpdate={onUpdate} />}{tab === "skills" && <section className="content-stack"><SkillAdvancementPanel character={character} onUpdate={onUpdate} /></section>}{tab === "profile" && <section className="content-stack"><ProfileEditor character={character} onUpdate={onUpdate} /><MotivationEditor character={character} onUpdate={onUpdate} /></section>}</>;
+}
+
+function SpecializationAdvancement({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  const available = specializations.filter((record) => !character.build.specializationIds.includes(record.id));
+  const [newSpecId, setNewSpecId] = useState(available[0]?.id ?? "");
+  useEffect(() => { if (!available.some((record) => record.id === newSpecId)) setNewSpecId(available[0]?.id ?? ""); }, [available, newSpecId]);
+  const candidate = available.find((record) => record.id === newSpecId);
+  const cost = candidate ? specializationAcquisitionCost(character.build.specializationIds.length, candidate.careerId === null || candidate.careerId === character.build.careerId) : 0;
+  return <section className="content-stack"><section className="paper-panel"><div className="section-heading"><div><p className="file-code">ADVANCE / SPECIALIZATIONS</p><h2>Acquire specialization</h2></div><strong>{availableXp(character)} XP available</strong></div>{candidate && <><select value={newSpecId} onChange={(event) => setNewSpecId(event.target.value)}>{available.map((record) => <option key={record.id} value={record.id}>{record.name}{record.careerId === null ? " — Universal" : record.careerId === character.build.careerId ? " — Career" : " — Out of career"}</option>)}</select><button className="primary" disabled={availableXp(character) < cost} onClick={() => onUpdate((draft) => { draft.build.specializationIds.push(candidate.id); draft.build.purchases.specializationIds.push(candidate.id); return draft; })}>Acquire for {cost} XP</button></>}</section>{character.build.specializationIds.map((id) => { const specialization = findSpecialization(id); const nodeIds = new Set(specialization.nodes.map((node) => node.id)); const purchased = character.build.purchases.talentNodeIds.filter((nodeId) => nodeIds.has(nodeId)); return <section key={id}><div className="section-heading"><div><p className="eyebrow">Owned specialization</p><h2>{specialization.name}</h2></div><strong>{availableXp(character)} XP available</strong></div><TalentTree specialization={specialization} purchasedIds={purchased} availableXp={availableXp(character)} interactive onChange={(ids) => onUpdate((draft) => { const otherNodeIds = draft.build.purchases.talentNodeIds.filter((nodeId) => !nodeIds.has(nodeId)); draft.build.purchases.talentNodeIds = [...otherNodeIds, ...ids]; return draft; })} /></section>; })}</section>;
+}
+
+function SessionUpdatePanel({ character, onUpdate }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void }) {
+  const [xpChange, setXpChange] = useState(0); const [favorChange, setFavorChange] = useState(0);
+  return <section className="paper-panel"><p className="eyebrow">End of session</p><h2>Apply final changes</h2><p className="instruction">Enter the XP award and final Favor change determined at the table. This also resets once-per-session talent uses.</p><div className="update-fields"><label className="field-label">XP change<input type="number" value={xpChange} onChange={(event) => setXpChange(Number(event.target.value))} /></label><label className="field-label">Favor change<input type="number" value={favorChange} onChange={(event) => setFavorChange(Number(event.target.value))} /></label></div><button className="primary" disabled={xpChange === 0 && favorChange === 0} onClick={() => { onUpdate((draft) => applySessionUpdate(draft, xpChange, favorChange)); setXpChange(0); setFavorChange(0); }}>Apply session update</button><p><small>Current totals: {character.resources.xpAwarded} awarded XP · {character.resources.favor} Favor</small></p></section>;
+}
+
+function ProfileEditor({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  const loadPortrait = (file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onUpdate((draft) => { draft.profile.portraitDataUrl = String(reader.result); return draft; });
+    reader.readAsDataURL(file);
+  };
+  return <section className="paper-panel"><p className="eyebrow">Profile</p><h2>Agent file</h2><div className="profile-editor"><Portrait character={character} large /><div><label className="field-label">Character art<input type="file" accept="image/*" onChange={(event) => loadPortrait(event.target.files?.[0])} /></label>{character.profile.portraitDataUrl && <label className="field-label">Portrait vertical framing<input type="range" min="0" max="100" value={character.profile.portraitFocusY ?? 50} onChange={(event) => onUpdate((draft) => { draft.profile.portraitFocusY = Number(event.target.value); return draft; })} /></label>}</div></div><label className="field-label">Agent name<input value={character.profile.name} onChange={(event) => onUpdate((draft) => { draft.profile.name = event.target.value; return draft; })} /></label><label className="field-label">Backstory<textarea rows={7} value={character.profile.backstory} onChange={(event) => onUpdate((draft) => { draft.profile.backstory = event.target.value; return draft; })} /></label></section>;
+}
+
+function MotivationEditor({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  const labels: Array<[keyof Character["profile"]["motivations"], string]> = [["strength", "Strength"], ["flaw", "Flaw"], ["desire", "Desire"], ["fear", "Fear"]];
+  return <section className="paper-panel"><p className="eyebrow">Motivations</p><h2>What drives the agent</h2><p className="instruction">These entries appear automatically in Summary and Social.</p><div className="motivation-editor">{labels.map(([key, label]) => <label className="field-label" key={key}>{label}<textarea rows={3} value={character.profile.motivations[key]} onChange={(event) => onUpdate((draft) => { draft.profile.motivations[key] = event.target.value; return draft; })} /></label>)}</div></section>;
+}
+
+function MotivationSummary({ character, indicators = false }: { character: Character; indicators?: boolean }) {
+  return <section className="paper-panel"><p className="eyebrow">Motivations</p><div className="motivation-grid">{Object.entries(character.profile.motivations).map(([key, value]) => <div key={key}><span className={indicators ? "motivation-indicator" : ""}>{key}</span><p>{value || "Not recorded"}</p></div>)}</div></section>;
+}
+
+function StatusGrid({ character }: { character: Character }) {
+  const status = thresholds(character);
+  const defense = defenses(character);
+  return <section className="status-grid"><div><span>Wounds</span><strong>{character.resources.wounds} / {status.wounds}</strong></div><div><span>Strain</span><strong>{character.resources.strain} / {status.strain}</strong></div><div><span>Soak</span><strong>{status.soak}</strong></div><div><span>Melee Defense</span><strong>{defense.melee}</strong></div><div><span>Ranged Defense</span><strong>{defense.ranged}</strong></div><div><span>Favor</span><strong>{character.resources.favor}</strong></div><div><span>Available XP</span><strong>{availableXp(character)}</strong></div><div><span>Money</span><strong>${character.resources.money}</strong></div></section>;
+}
+
+function CharacteristicStrip({ values }: { values: ReturnType<typeof derivedCharacteristics> }) {
+  return <div className="characteristic-strip">{Object.entries(values).map(([name, value]) => <div key={name}><span>{name.slice(0, 3)}</span><strong>{value}</strong></div>)}</div>;
+}
