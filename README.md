@@ -2,7 +2,9 @@
 
 Mobile-first, local-first character creation, play reference, and advancement for Sierra Zero.
 
-## Current milestone — checkpoint 0.5
+Live app: https://millcrab.github.io/sierra-zero-character-manager/
+
+## Current milestone — checkpoint 0.6
 
 The repository contains the local-first application foundation and the complete approved mechanical data corpus: 24 archetypes, 6 careers, 39 specialization trees, 780 talent nodes, 125 items, and 31 attachments. Character creation includes reversible characteristic, skill, talent, gear, and attachment spending plus motivations and a portrait-ready profile. Play includes Dashboard, Combat, Social, Skills, Gear, and specialization reference screens; Advance includes session updates, specialization trees, skills, and profile editing. Players can export one character, back up the complete roster, and import validated backups including portraits. Remaining work is tracked in `docs/implementation-status.md`; approved rulings are recorded in `docs/ambiguities.md`.
 

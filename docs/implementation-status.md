@@ -1,6 +1,6 @@
 # Implementation Status
 
-## Completed through checkpoint 0.5
+## Completed through checkpoint 0.6
 
 - React, TypeScript, and Vite foundation.
 - Relative production paths for GitHub Pages repository hosting.
@@ -32,12 +32,17 @@
 - Exact draft refunds for cash- and Favor-purchased gear and attachments; reward items refund no resources.
 - Build-time checks for relative GitHub Pages paths, PWA scope, complete application-shell precaching, and offline navigation fallback.
 - Twenty-two passing rules-engine, graph, source-count, cross-reference, equipment, turn-state, refund, and transfer tests.
-- Complete GitHub Pages deployment workflow and `.nojekyll` output. Publishing awaits a connected Git repository.
+- Complete GitHub Pages deployment workflow, `.nojekyll` output, and public deployment.
+- Three compact equipment-category selectors for weapons, armor, and general gear.
+- Visible two-way connector paths on all specialization trees, with reachable and purchased path states.
+- Expandable inventory entries with attachment management isolated in a focused modification dialog.
+- Colored geometric Ability, Proficiency, Boost, Difficulty, Challenge, and Setback dice symbols in pools and rules text.
+- User-controlled PWA update notification, installed-version display, and update-and-restart action.
 
 ## Deliberately deferred
 
 - Mechanical automation for every free-form talent and attachment effect; source rules remain visible even where automation is not appropriate.
-- Migration functions for a future schema version; checkpoint 0.5 remains schema version 1 and safely rejects newer imports.
+- Migration functions for a future schema version; checkpoint 0.6 remains schema version 1 and safely rejects newer imports.
 - Manual/GM-created custom items.
 - Final player-facing career and specialization descriptions during bulk data import.
 - Real-device installation, offline relaunch, update, accessibility, and complete acceptance-scenario testing.

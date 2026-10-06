@@ -1,6 +1,7 @@
 import { talents } from "../data/canonical";
 import { canPurchaseNode, removeNodeWithCascade } from "../engine/rules";
 import type { SpecializationRecord } from "../types";
+import { GameText } from "./DiceSymbols";
 
 interface TalentTreeProps {
   specialization: SpecializationRecord;
@@ -26,7 +27,23 @@ export function TalentTree({ specialization, purchasedIds, availableXp, interact
   };
 
   return (
-    <section className="talent-tree" aria-label={`${specialization.name} talent tree`}>
+    <section className="talent-tree-scroller" aria-label={`${specialization.name} talent tree`}>
+      <div className="talent-tree">
+      {specialization.edges.map(([leftId, rightId]) => {
+        const left = specialization.nodes.find((node) => node.id === leftId)!;
+        const right = specialization.nodes.find((node) => node.id === rightId)!;
+        const horizontal = left.row === right.row;
+        const bothPurchased = purchased.has(leftId) && purchased.has(rightId);
+        const onePurchased = purchased.has(leftId) || purchased.has(rightId);
+        return <span
+          aria-hidden="true"
+          key={`${leftId}-${rightId}`}
+          className={`talent-connector talent-connector--${horizontal ? "horizontal" : "vertical"} ${bothPurchased ? "is-purchased" : onePurchased ? "is-reachable" : ""}`}
+          style={horizontal
+            ? { gridColumn: `${Math.min(left.column, right.column)} / span 2`, gridRow: left.row }
+            : { gridColumn: left.column, gridRow: `${Math.min(left.row, right.row)} / span 2` }}
+        />;
+      })}
       {specialization.nodes.map((node) => {
         const talent = talents.find((candidate) => candidate.id === node.talentId)!;
         const isPurchased = purchased.has(node.id);
@@ -42,11 +59,12 @@ export function TalentTree({ specialization, purchasedIds, availableXp, interact
             onClick={() => toggle(node.id, node.cost)}
           >
             <span className="talent-node__name">{talent.name}</span>
-            <span className="talent-node__rules">{talent.rules}</span>
+            <span className="talent-node__rules"><GameText>{talent.rules}</GameText></span>
             <span className="talent-node__cost">{node.cost} XP</span>
           </button>
         );
       })}
+      </div>
     </section>
   );
 }

@@ -24,4 +24,5 @@ async function filesUnder(directory) {
 const serviceWorker = await readFile(join(root, "sw.js"), "utf8");
 for (const file of await filesUnder(root)) if (!serviceWorker.includes(JSON.stringify(file))) throw new Error(`Service worker does not precache ${file}.`);
 if (!serviceWorker.includes('caches.match("./index.html")')) throw new Error("Service worker has no offline navigation fallback.");
+if (!serviceWorker.includes('event.data?.type === "SKIP_WAITING"')) throw new Error("Service worker has no user-controlled update activation.");
 console.log("Verified relative GitHub Pages paths, PWA manifest, offline fallback, and complete precache.");
