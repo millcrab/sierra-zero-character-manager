@@ -1,0 +1,34 @@
+name: Apply Sierra Zero checkpoint
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply prepared checkpoint
+        run: |
+          if [ ! -f sierra-zero-update.tar.gz ]; then
+            echo "No prepared checkpoint is waiting."
+            exit 0
+          fi
+          tar -xzf sierra-zero-update.tar.gz
+          rm sierra-zero-update.tar.gz
+      - name: Commit checkpoint
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "Nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Release Sierra Zero checkpoint 0.6"
+          git push
