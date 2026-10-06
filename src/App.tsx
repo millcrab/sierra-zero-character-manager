@@ -36,14 +36,15 @@ import {
 } from "./engine/rules";
 import { TalentTree } from "./components/TalentTree";
 import { DicePoolDisplay, GameText } from "./components/DiceSymbols";
-import { listCharacters, saveCharacter, saveCharacters } from "./storage/db";
+import { Manual } from "./components/Manual";
+import { deleteCharacter, listCharacters, saveCharacter, saveCharacters } from "./storage/db";
 import { mergeImportedCharacters, parseBackup, serializeBackup } from "./storage/transfer";
 import { activateWaitingWorker, UPDATE_READY_EVENT } from "./pwa";
 import type { AcquisitionPayment, Character, CharacteristicKey, TalentRecord } from "./types";
 import packageJson from "../package.json";
 import "./styles.css";
 
-type View = "home" | "create" | "summary" | "play" | "advance";
+type View = "home" | "manual" | "create" | "summary" | "play" | "advance";
 type CharacterUpdater = (updater: (character: Character) => Character) => void;
 type PlayTab = "dashboard" | "combat" | "social" | "skills" | "gear" | "spec";
 type AdvanceTab = "update" | "specs" | "skills" | "profile";
@@ -57,7 +58,7 @@ interface SierraHistoryState {
   advanceTab?: AdvanceTab;
 }
 
-const views: View[] = ["home", "create", "summary", "play", "advance"];
+const views: View[] = ["home", "manual", "create", "summary", "play", "advance"];
 const playTabs: PlayTab[] = ["dashboard", "combat", "social", "skills", "gear", "spec"];
 const advanceTabs: AdvanceTab[] = ["update", "specs", "skills", "profile"];
 
@@ -90,6 +91,7 @@ function downloadBackup(characters: Character[], filename: string) {
 }
 
 export default function App() {
+  const [coverVisible, setCoverVisible] = useState(true);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [activeId, setActiveId] = useState<string | null>(() => currentHistoryState()?.activeId ?? null);
   const [view, setView] = useState<View>(() => currentHistoryState()?.view ?? "home");
@@ -163,8 +165,20 @@ export default function App() {
     }
   };
 
+  const removeCharacter = async (id: string) => {
+    await deleteCharacter(id);
+    setCharacters((current) => current.filter((character) => character.id !== id));
+    if (activeId === id) {
+      setActiveId(null);
+      setView("home");
+      window.history.replaceState({ sierraZero: true, view: "home", activeId: null } satisfies SierraHistoryState, "");
+    }
+  };
+
+  if (coverVisible) return <CoverScreen onEnter={() => setCoverVisible(false)} />;
   if (!ready) return <main className="loading">Opening personnel files...</main>;
-  if (view === "home" || !active) return <><UpdateBanner visible={updateReady} /><Home characters={characters} beginCreation={beginCreation} notice={transferNotice} backup={() => downloadBackup(characters, "sierra-zero-roster-backup.json")} importBackup={importBackup} open={(character) => {
+  if (view === "manual") return <><UpdateBanner visible={updateReady} /><Manual hasActiveCharacter={Boolean(active)} onRoster={() => navigate("home", null)} onReturnToAgent={() => navigate("summary", activeId)} /></>;
+  if (view === "home" || !active) return <><UpdateBanner visible={updateReady} /><Home characters={characters} beginCreation={beginCreation} notice={transferNotice} backup={() => downloadBackup(characters, "sierra-zero-roster-backup.json")} importBackup={importBackup} deleteCharacter={removeCharacter} openManual={() => navigate("manual", null)} open={(character) => {
     navigate(character.status === "draft" ? "create" : "summary", character.id);
   }} /></>;
 
@@ -172,7 +186,7 @@ export default function App() {
   const career = findCareer(active.build.careerId);
   return <><UpdateBanner visible={updateReady} /><main className="app-shell character-shell">
     <header className="character-header">
-      <button className="text-button" type="button" onClick={() => navigate("home", null)}>Roster</button>
+      <div className="header-actions"><button className="text-button" type="button" onClick={() => navigate("home", null)}>Roster</button><button className="text-button" type="button" onClick={() => navigate("manual")}>Manual</button></div>
       <div><p className="file-code">SZ / RESPONDER FILE</p><h1>{active.profile.name}</h1></div>
       <span className="xp-chip">{availableXp(active)} XP</span>
     </header>
@@ -196,18 +210,23 @@ export default function App() {
   </main></>;
 }
 
+function CoverScreen({ onEnter }: { onEnter: () => void }) {
+  return <button className="cover-screen" type="button" onClick={onEnter} aria-label="Open Sierra Zero Character Manager"><img src={`${import.meta.env.BASE_URL}sierra-zero-cover.png`} alt="Sierra Zero: A Genesys setting of paranormal crisis response" /><span>Tap anywhere to open the files</span></button>;
+}
+
 function UpdateBanner({ visible }: { visible: boolean }) {
   if (!visible) return null;
   return <aside className="update-banner" role="status"><div><strong>A Sierra Zero update is ready.</strong><span>Your characters will remain on this device.</span></div><button className="primary" onClick={() => void activateWaitingWorker()}>Update and restart</button></aside>;
 }
 
-function Home({ characters, beginCreation, open, backup, importBackup, notice }: { characters: Character[]; beginCreation: () => void; open: (character: Character) => void; backup: () => void; importBackup: (file?: File) => void; notice: string }) {
+function Home({ characters, beginCreation, open, backup, importBackup, deleteCharacter: removeCharacter, openManual, notice }: { characters: Character[]; beginCreation: () => void; open: (character: Character) => void; backup: () => void; importBackup: (file?: File) => void; deleteCharacter: (id: string) => Promise<void>; openManual: () => void; notice: string }) {
+  const [deleting, setDeleting] = useState<Character | null>(null);
   return <main className="app-shell home-screen">
     <header className="masthead"><div className="mark">SZ</div><div><p className="eyebrow">Office of Exceptional Contingency</p><h1>Sierra Zero</h1><p className="deck">Character Manager</p></div></header>
-    <section className="roster"><div className="section-heading"><div><p className="file-code">FILE INDEX / LOCAL</p><h2>Agent roster</h2></div><button className="primary" onClick={beginCreation}>Create new agent</button></div><div className="roster-tools"><button className="secondary" disabled={!characters.length} onClick={backup}>Backup all characters</button><label className="secondary file-button">Import backup<input type="file" accept="application/json,.json" onChange={(event) => { importBackup(event.target.files?.[0]); event.target.value = ""; }} /></label></div>{notice && <p className="transfer-notice" role="status">{notice}</p>}
+    <section className="roster"><div className="section-heading"><div><p className="file-code">FILE INDEX / LOCAL</p><h2>Agent roster</h2></div><div className="roster-primary-actions"><button className="secondary" onClick={openManual}>Open manual</button><button className="primary" onClick={beginCreation}>Create new agent</button></div></div><div className="roster-tools"><button className="secondary" disabled={!characters.length} onClick={backup}>Backup all characters</button><label className="secondary file-button">Import backup<input type="file" accept="application/json,.json" onChange={(event) => { importBackup(event.target.files?.[0]); event.target.value = ""; }} /></label></div>{notice && <p className="transfer-notice" role="status">{notice}</p>}
       {characters.length === 0 ? <div className="empty-state"><span className="stamp">NO ACTIVE FILES</span><p>Create the first local character record. Drafts and completed agents remain on this device.</p></div> :
-        <div className="dossier-list">{characters.map((character) => <button type="button" className="dossier-card" key={character.id} onClick={() => open(character)}><Portrait character={character} /><span><span className="file-code">{character.status === "draft" ? "DRAFT" : "ACTIVE RESPONDER"}</span><strong>{character.profile.name}</strong><small>{findArchetype(character.build.archetypeId)?.name} / {findCareer(character.build.careerId)?.name}</small></span></button>)}</div>}
-    </section><footer className="app-version">Sierra Zero Character Manager · v{packageJson.version}</footer>
+        <div className="dossier-list">{characters.map((character) => <article className="dossier-card" key={character.id}><button type="button" className="dossier-open" onClick={() => open(character)}><Portrait character={character} /><span><span className="file-code">{character.status === "draft" ? "DRAFT" : "ACTIVE RESPONDER"}</span><strong>{character.profile.name}</strong><small>{findArchetype(character.build.archetypeId)?.name} / {findCareer(character.build.careerId)?.name}</small></span></button><button type="button" className="dossier-delete" onClick={() => setDeleting(character)} aria-label={`Delete ${character.profile.name}`}>Delete</button></article>)}</div>}
+    </section><footer className="app-version">Sierra Zero Character Manager · v{packageJson.version}</footer>{deleting && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDeleting(null); }}><section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-character-title"><p className="eyebrow">Permanent file action</p><h2 id="delete-character-title">Delete {deleting.profile.name}?</h2><p>This removes the character and its portrait from this device. This cannot be undone unless the character exists in a backup.</p><div className="dialog-actions"><button className="secondary" onClick={() => setDeleting(null)}>Cancel</button><button className="danger" onClick={() => { const id = deleting.id; setDeleting(null); void removeCharacter(id); }}>Delete character</button></div></section></div>}
   </main>;
 }
 

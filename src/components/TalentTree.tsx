@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { talents } from "../data/canonical";
 import { canPurchaseNode, removeNodeWithCascade } from "../engine/rules";
 import type { SpecializationRecord } from "../types";
@@ -13,6 +14,10 @@ interface TalentTreeProps {
 
 export function TalentTree({ specialization, purchasedIds, availableXp, interactive, onChange }: TalentTreeProps) {
   const purchased = new Set(purchasedIds);
+  const [expanded, setExpanded] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const selectedNode = specialization.nodes.find((node) => node.id === selectedNodeId) ?? null;
+  const selectedTalent = selectedNode ? talents.find((talent) => talent.id === selectedNode.talentId) ?? null : null;
 
   const toggle = (nodeId: string, cost: number) => {
     if (!interactive) return;
@@ -27,8 +32,10 @@ export function TalentTree({ specialization, purchasedIds, availableXp, interact
   };
 
   return (
-    <section className="talent-tree-scroller" aria-label={`${specialization.name} talent tree`}>
-      <div className="talent-tree">
+    <section className="talent-tree-container" aria-label={`${specialization.name} talent tree`}>
+      <div className="talent-tree-toolbar"><button className="secondary" type="button" onClick={() => setExpanded((current) => !current)}>{expanded ? "Collapse all" : "Expand all"}</button><span>Tap a talent for its complete rules.</span></div>
+      <div className="talent-tree-scroller">
+      <div className={`talent-tree ${expanded ? "is-expanded" : "is-compact"}`}>
       {specialization.edges.map(([leftId, rightId]) => {
         const left = specialization.nodes.find((node) => node.id === leftId)!;
         const right = specialization.nodes.find((node) => node.id === rightId)!;
@@ -52,19 +59,20 @@ export function TalentTree({ specialization, purchasedIds, availableXp, interact
           <button
             type="button"
             key={node.id}
-            className={`talent-node ${isPurchased ? "is-purchased" : ""} ${node.defining ? "is-defining" : ""}`}
+            className={`talent-node ${isPurchased ? "is-purchased" : ""} ${!isPurchased && !isAvailable ? "is-unavailable" : ""} ${node.defining ? "is-defining" : ""}`}
             style={{ gridColumn: node.column, gridRow: node.row }}
-            disabled={interactive && !isPurchased && !isAvailable}
+            aria-disabled={interactive && !isPurchased && !isAvailable}
             aria-pressed={isPurchased}
-            onClick={() => toggle(node.id, node.cost)}
+            onClick={() => setSelectedNodeId(node.id)}
           >
             <span className="talent-node__name">{talent.name}</span>
-            <span className="talent-node__rules"><GameText>{talent.rules}</GameText></span>
-            <span className="talent-node__cost">{node.cost} XP</span>
+            {expanded && <><span className="talent-node__rules"><GameText>{talent.rules}</GameText></span><span className="talent-node__cost">{node.cost} XP</span></>}
           </button>
         );
       })}
       </div>
+      </div>
+      {selectedNode && selectedTalent && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedNodeId(null); }}><section className="talent-dialog" role="dialog" aria-modal="true" aria-labelledby={`talent-${selectedNode.id}`}><div className="section-heading"><div><p className="eyebrow">{specialization.name} · {selectedNode.cost} XP</p><h2 id={`talent-${selectedNode.id}`}>{selectedTalent.name}</h2></div><button className="text-button" type="button" onClick={() => setSelectedNodeId(null)}>Close</button></div><p><GameText>{selectedTalent.rules}</GameText></p><p><small>{selectedTalent.ranked ? "Ranked" : "Unranked"} · {selectedTalent.activation}{selectedTalent.usage !== "none" ? ` · once per ${selectedTalent.usage}` : ""}</small></p>{interactive && <button className={purchased.has(selectedNode.id) ? "secondary" : "primary"} type="button" disabled={!purchased.has(selectedNode.id) && (availableXp < selectedNode.cost || !canPurchaseNode(specialization, purchased, selectedNode.id))} onClick={() => { toggle(selectedNode.id, selectedNode.cost); setSelectedNodeId(null); }}>{purchased.has(selectedNode.id) ? "Remove talent" : `Purchase for ${selectedNode.cost} XP`}</button>}</section></div>}
     </section>
   );
 }

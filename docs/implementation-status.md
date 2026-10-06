@@ -1,6 +1,6 @@
 # Implementation Status
 
-## Completed through checkpoint 0.6.1
+## Completed through checkpoint 0.7
 
 - React, TypeScript, and Vite foundation.
 - Relative production paths for GitHub Pages repository hosting.
@@ -39,12 +39,16 @@
 - Colored geometric Ability, Proficiency, Boost, Difficulty, Challenge, and Setback dice symbols in pools and rules text.
 - Android/PWA back-button history across the roster, character modes, Play and Advance tabs, and creation steps.
 - Mobile-contained specialization trees that scroll horizontally without forcing the full page beyond the phone viewport.
+- Full-cover launch gate shown once per fresh app launch.
+- Confirmed character deletion from the local roster.
+- Compact four-column specialization maps with bidirectional paths, tappable full-rules dialogs, and per-tree expanded mode.
+- Global searchable, alphabetized, and tabbed Manual reference for setting rules and the complete mechanical corpus.
 - User-controlled PWA update notification, installed-version display, and update-and-restart action.
 
 ## Deliberately deferred
 
 - Mechanical automation for every free-form talent and attachment effect; source rules remain visible even where automation is not appropriate.
-- Migration functions for a future schema version; checkpoint 0.6 remains schema version 1 and safely rejects newer imports.
+- Migration functions for a future schema version; checkpoint 0.7 remains schema version 1 and safely rejects newer imports.
 - Manual/GM-created custom items.
 - Final player-facing career and specialization descriptions during bulk data import.
 - Real-device installation, offline relaunch, update, accessibility, and complete acceptance-scenario testing.

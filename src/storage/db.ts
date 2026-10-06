@@ -62,3 +62,13 @@ export async function saveCharacter(character: Character): Promise<void> {
     transaction.onerror = () => reject(transaction.error);
   });
 }
+
+export async function deleteCharacter(id: string): Promise<void> {
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(STORE_NAME, "readwrite");
+    transaction.objectStore(STORE_NAME).delete(id);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
