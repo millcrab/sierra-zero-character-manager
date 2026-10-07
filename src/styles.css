@@ -144,6 +144,10 @@ h3 { margin-bottom: 8px; }
 .profile-editor { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 18px; align-items: center; margin-bottom: 18px; }
 .portrait-image { object-fit: cover; }
 .motivation-editor, .motivation-grid { display: grid; gap: 12px; }
+.motivation-field { display: grid; align-content: start; gap: 10px; padding: 13px; border: 1px solid #b8b1a5; background: rgba(255,255,255,.32); }
+.motivation-reference { padding: 9px 0; }
+.motivation-reference summary { color: var(--deep-red); font-weight: 700; cursor: pointer; }
+.motivation-reference p { margin: 9px 0 0; line-height: 1.5; }
 .motivation-grid > div { padding: 11px; border-left: 3px solid var(--red); background: rgba(255,255,255,.45); }
 .motivation-grid span { color: #5e5a54; font: 650 .7rem "IBM Plex Mono", monospace; text-transform: uppercase; }
 .motivation-grid p { margin: 5px 0 0; }
@@ -153,6 +157,23 @@ h3 { margin-bottom: 8px; }
 .gear-card { display: grid; gap: 12px; padding: 15px 0; border-top: 1px solid #ccc6ba; }
 .gear-card small, .inventory-row small { display: block; margin-top: 4px; color: #66625c; }
 .gear-card p, .inventory-row p { margin: 8px 0 0; color: #504d48; line-height: 1.45; }
+.item-details h3 { margin: 0 0 5px; }
+.item-details__meta { color: #66625c !important; font-size: .78rem; text-transform: capitalize; }
+.item-stat-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; margin: 13px 0 0; }
+.item-stat-grid > div { padding: 8px; background: rgba(255,255,255,.48); border-left: 2px solid var(--red); }
+.item-stat-grid dt { color: #66625c; font: 650 .64rem "IBM Plex Mono", monospace; text-transform: uppercase; }
+.item-stat-grid dd { margin: 4px 0 0; font-weight: 750; }
+.item-details__qualities { padding-top: 9px; border-top: 1px solid #d2cbc0; }
+.money-adjuster { display: grid; gap: 9px; margin: 16px 0; padding: 13px; border: 1px solid #aaa49a; background: rgba(255,255,255,.38); }
+.money-adjuster button { justify-self: start; }
+.money-adjuster small, .field-note { color: #66625c; line-height: 1.4; }
+.starting-benefit-options { display: grid; gap: 10px; margin-top: 14px; }
+.starting-benefit-options label { display: flex; gap: 11px; align-items: flex-start; padding: 13px; border: 1px solid #aaa49a; background: rgba(255,255,255,.4); cursor: pointer; }
+.starting-benefit-options label.selected { border: 2px solid var(--deep-red); background: #fff; }
+.starting-benefit-options input { width: 20px; height: 20px; flex: none; }
+.starting-benefit-options strong, .starting-benefit-options small { display: block; }
+.starting-benefit-options small { margin-top: 4px; color: #66625c; line-height: 1.4; }
+.success-note { padding: 9px 11px; border-left: 3px solid #3d6b48; background: #edf4e9; color: #26472e; font-weight: 700; }
 .inventory-heading { margin: 20px 0 0; padding-top: 16px; border-top: 2px solid var(--charcoal); }
 .inventory-row { padding: 0; border-top: 1px solid #ccc6ba; }
 .inventory-row > summary { display: flex; align-items: center; min-height: 62px; padding: 12px 3px; list-style: none; }
@@ -180,7 +201,7 @@ h3 { margin-bottom: 8px; }
 .talent-connector.is-reachable { background: #b06b27; }
 .talent-connector.is-purchased { background: var(--deep-red); }
 .talent-node { position: relative; z-index: 1; min-width: 190px; padding: 13px 12px 38px; text-align: left; color: var(--charcoal); background: var(--paper); border: 2px solid #74726c; clip-path: polygon(0 0, 94% 0, 100% 10%, 100% 100%, 6% 100%, 0 90%); }
-.talent-node.is-unavailable { opacity: .52; }
+.talent-node.is-unavailable { opacity: 1; color: #6d6962; background: #e4dfd4; border-color: #aaa399; }
 .talent-node.is-purchased { color: white; background: var(--deep-red); border-color: var(--red); opacity: 1; }
 .talent-node.is-defining::before { content: "◆"; position: absolute; top: 6px; right: 8px; color: #c4861f; }
 .talent-node__name { display: block; margin-bottom: 10px; font: 700 .76rem "IBM Plex Mono", monospace; letter-spacing: .07em; text-transform: uppercase; }
@@ -254,6 +275,9 @@ details p { margin: 10px 0 0; line-height: 1.5; color: #504d48; }
   .content-stack { padding: 30px 36px; }
   .dossier-list { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .gear-card { grid-template-columns: minmax(0, 1fr) auto; }
+  .item-stat-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .money-adjuster { grid-template-columns: minmax(0,1fr) auto; align-items: end; }
+  .money-adjuster small { grid-column: 1 / -1; }
   .gear-selectors { grid-template-columns: repeat(3, minmax(0,1fr)); }
   .advancement-grid, .motivation-editor, .motivation-grid { grid-template-columns: repeat(2, minmax(0,1fr)); column-gap: 22px; }
   .manual-header { padding-inline: 44px; }

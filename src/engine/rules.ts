@@ -454,7 +454,12 @@ export function createCharacterDraft(
       portraitDataUrl: null,
       portraitFocusY: 50,
       backstory: "",
-      motivations: { strength: "", flaw: "", desire: "", fear: "" }
+      motivations: {
+        strength: { optionId: "", detail: "" },
+        flaw: { optionId: "", detail: "" },
+        desire: { optionId: "", detail: "" },
+        fear: { optionId: "", detail: "" }
+      }
     },
     build: {
       archetypeId,
@@ -475,6 +480,7 @@ export function createCharacterDraft(
       }
     },
     resources: {
+      startingBenefit: "favor",
       bonusStartingXp: 0,
       xpAwarded: 0,
       favor: 10,

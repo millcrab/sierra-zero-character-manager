@@ -1,6 +1,6 @@
 # Implementation Status
 
-## Completed through checkpoint 0.7
+## Completed through checkpoint 0.8
 
 - React, TypeScript, and Vite foundation.
 - Relative production paths for GitHub Pages repository hosting.
@@ -26,12 +26,12 @@
 - Dashboard, Combat, Social, Skills, Gear, and specialization-reference Play screens.
 - Wound and strain controls, encounter reset, turn checklist, and committed/refundable extra-maneuver strain behavior.
 - Equipped armor Soak/Defense derivation and a three-equipped-weapon limit with weapon pool cards.
-- Editable motivations, name, backstory, portrait upload, and portrait framing shared across creation, Summary, Social, and Profile.
-- Single-character export, complete-roster backup, and validated import with portrait data included.
+- CRB-list motivation selectors with expandable reference text, agent-specific detail, and shared Summary, Social, and Profile display.
+- Single-character export, complete-roster backup, automatic session-update backup, and validated newest-wins multi-file import with portrait data included.
 - Safe rejection of unsupported schemas and unknown archetype, career, specialization, skill, talent-node, and item IDs.
 - Exact draft refunds for cash- and Favor-purchased gear and attachments; reward items refund no resources.
 - Build-time checks for relative GitHub Pages paths, PWA scope, complete application-shell precaching, and offline navigation fallback.
-- Twenty-two passing rules-engine, graph, source-count, cross-reference, equipment, turn-state, refund, and transfer tests.
+- Twenty-four passing rules-engine, graph, source-count, cross-reference, equipment, turn-state, migration, refund, and transfer tests.
 - Complete GitHub Pages deployment workflow, `.nojekyll` output, and public deployment.
 - Three compact equipment-category selectors for weapons, armor, and general gear.
 - Visible two-way connector paths on all specialization trees, with reachable and purchased path states.
@@ -44,11 +44,15 @@
 - Compact four-column specialization maps with bidirectional paths, tappable full-rules dialogs, and per-tree expanded mode.
 - Global searchable, alphabetized, and tabbed Manual reference for setting rules and the complete mechanical corpus.
 - User-controlled PWA update notification, installed-version display, and update-and-restart action.
+- Explicit creation choice between 10 starting Favor and 10 bonus starting XP, with safe switching rules.
+- Full manual-grade statistics in creation and Play equipment previews and expanded inventory entries.
+- Signed Play money adjustment control and opaque compact talent nodes that keep connectors behind text.
+- Timestamp-aware backup merging that deduplicates matching character IDs and preserves the newest record.
 
 ## Deliberately deferred
 
 - Mechanical automation for every free-form talent and attachment effect; source rules remain visible even where automation is not appropriate.
-- Migration functions for a future schema version; checkpoint 0.7 remains schema version 1 and safely rejects newer imports.
+- Migration functions for a future schema version; checkpoint 0.8 remains schema version 1, normalizes legacy motivation strings, and safely rejects newer imports.
 - Manual/GM-created custom items.
 - Final player-facing career and specialization descriptions during bulk data import.
 - Real-device installation, offline relaunch, update, accessibility, and complete acceptance-scenario testing.

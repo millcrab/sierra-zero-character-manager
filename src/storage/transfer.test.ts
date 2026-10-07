@@ -29,4 +29,26 @@ describe("character backup transfer", () => {
     expect(merged).toHaveLength(2);
     expect(merged.find((character) => character.id === existing.id)?.profile.name).toBe("Replacement");
   });
+
+  it("keeps the newest timestamp when several backups contain the same character", () => {
+    const current = createCharacterDraft();
+    current.profile.name = "Current";
+    current.metadata.updatedAt = "2026-10-06T15:00:00.000Z";
+    const older = structuredClone(current);
+    older.profile.name = "Older backup";
+    older.metadata.updatedAt = "2026-10-01T15:00:00.000Z";
+    const newer = structuredClone(current);
+    newer.profile.name = "Newest backup";
+    newer.metadata.updatedAt = "2026-10-06T16:00:00.000Z";
+    const merged = mergeImportedCharacters([current], [newer, older]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].profile.name).toBe("Newest backup");
+  });
+
+  it("migrates legacy free-text motivations into agent-specific detail", () => {
+    const character = createCharacterDraft();
+    (character.profile.motivations as unknown as Record<string, string>).strength = "Never gives up";
+    const restored = parseBackup(serializeBackup([character]));
+    expect(restored[0].profile.motivations.strength).toEqual({ optionId: "", detail: "Never gives up" });
+  });
 });

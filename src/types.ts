@@ -155,6 +155,12 @@ export interface AcquisitionRecord {
   amount: number;
 }
 
+export type MotivationKey = "strength" | "flaw" | "desire" | "fear";
+export interface MotivationSelection {
+  optionId: string;
+  detail: string;
+}
+
 export interface Character {
   id: string;
   schemaVersion: 1;
@@ -165,10 +171,10 @@ export interface Character {
     portraitFocusY?: number;
     backstory: string;
     motivations: {
-      strength: string;
-      flaw: string;
-      desire: string;
-      fear: string;
+      strength: MotivationSelection;
+      flaw: MotivationSelection;
+      desire: MotivationSelection;
+      fear: MotivationSelection;
     };
   };
   build: {
@@ -185,6 +191,7 @@ export interface Character {
     purchases: PurchaseLedger;
   };
   resources: {
+    startingBenefit: "favor" | "xp";
     bonusStartingXp: number;
     xpAwarded: number;
     favor: number;

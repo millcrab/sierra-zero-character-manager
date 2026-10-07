@@ -37,6 +37,17 @@ export function normalizeCharacter(character: Character): Character {
   };
   character.build.startingSkillSelections.archetypeSkillGroups ??= {};
   character.resources.money ??= 500;
+  character.resources.startingBenefit ??= character.resources.bonusStartingXp >= 10 ? "xp" : "favor";
+  const motivationKeys = ["strength", "flaw", "desire", "fear"] as const;
+  for (const key of motivationKeys) {
+    const legacy = character.profile.motivations[key] as unknown;
+    if (typeof legacy === "string") character.profile.motivations[key] = { optionId: "", detail: legacy };
+    else if (!legacy || typeof legacy !== "object") character.profile.motivations[key] = { optionId: "", detail: "" };
+    else {
+      character.profile.motivations[key].optionId ??= "";
+      character.profile.motivations[key].detail ??= "";
+    }
+  }
   character.profile.portraitFocusY ??= 50;
   character.inventory = character.inventory.map((instance) => ({ ...instance, attachmentIds: instance.attachmentIds ?? [], attachmentAcquisitions: instance.attachmentAcquisitions ?? {} }));
   return character;

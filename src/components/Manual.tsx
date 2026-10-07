@@ -1,7 +1,9 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { archetypes, attachments, careers, items, skills, specializations, talents } from "../data/canonical";
 import { maneuvers } from "../data/maneuvers";
+import { motivationKeys, motivationLabels, motivationOptions } from "../data/motivations";
 import { GameText } from "./DiceSymbols";
+import { ItemDetails } from "./ItemDetails";
 
 type ManualTab = "rules" | "archetypes" | "careers" | "specializations" | "talents" | "skills" | "equipment";
 
@@ -48,6 +50,13 @@ function ruleEntries(): ManualEntry[] {
       subtitle: "Institutional standing and Bureau support",
       searchText: "favor gear requisition success advantage internal social session change controlled restricted advanced",
       content: <><p>Favor measures the Bureau's confidence in an agent. Each agent begins with 10 Favor, or may begin with 0 Favor and gain 10 additional starting XP. The app tracks personal Favor only; it does not track Group Favor.</p><p>At the end of a session, determine the final Favor change at the table and enter only that signed change in the session update.</p><h4>Requisitioning gear</h4><p>Favor cost equals item Rarity plus its price divided by 500, rounded up. Controlled items add no modifier, Restricted items add 2, and Advanced items are reward-only.</p><h4>Internal influence</h4><p>After an internal social check, spend 2 Favor to add one Success or 1 Favor to add one Advantage. Multiple symbols may be purchased, but Favor cannot buy Triumph.</p></>
+    },
+    {
+      id: "motivations",
+      title: "Motivations",
+      subtitle: "Strength, Flaw, Desire, and Fear",
+      searchText: motivationKeys.flatMap((key) => motivationOptions[key].map((option) => `${motivationLabels[key]} ${option.name} ${option.description}`)).join(" "),
+      content: <><p>Every character records four Motivation facets. Select one example for each facet, then add the personal detail that makes it specific to the agent.</p>{motivationKeys.map((key) => <div key={key}><h4>{motivationLabels[key]}</h4>{motivationOptions[key].map((option) => <p key={option.id}><strong>{option.name}:</strong> {option.description}</p>)}</div>)}</>
     },
     {
       id: "specializations",
@@ -116,7 +125,7 @@ function entriesFor(tab: ManualTab): ManualEntry[] {
       title: item.name,
       subtitle: `${item.category} · $${item.price} · Rarity ${item.rarity} · ${item.access}`,
       searchText: `${item.description} ${item.category} ${item.access} ${item.weapon?.qualities.join(" ") ?? ""}`,
-      content: <><p><GameText>{item.description}</GameText></p><p><strong>Encumbrance:</strong> {item.encumbrance}. <strong>Hard points:</strong> {item.hardPoints}.</p>{item.weapon && <p><strong>{skillName(item.weapon.skillId)}</strong> · Damage {item.weapon.damage} · Critical {item.weapon.critical} · Range {item.weapon.range}{item.weapon.qualities.length ? ` · ${item.weapon.qualities.join(", ")}` : ""}</p>}{item.armor && <p><strong>Defense:</strong> {item.armor.defense}. <strong>Soak:</strong> {item.armor.soak}.</p>}</>
+      content: <ItemDetails item={item} />
     })),
     ...attachments.map((attachment) => ({
       id: `attachment-${attachment.id}`,

@@ -58,6 +58,9 @@ export function parseBackup(text: string): Character[] {
 
 export function mergeImportedCharacters(current: Character[], imported: Character[]): Character[] {
   const byId = new Map(current.map((character) => [character.id, character]));
-  for (const character of imported) byId.set(character.id, character);
+  for (const character of imported) {
+    const existing = byId.get(character.id);
+    if (!existing || character.metadata.updatedAt >= existing.metadata.updatedAt) byId.set(character.id, character);
+  }
   return [...byId.values()].sort((a, b) => b.metadata.updatedAt.localeCompare(a.metadata.updatedAt));
 }
