@@ -1,6 +1,6 @@
 # Implementation Status
 
-## Completed through checkpoint 0.8
+## Completed through checkpoint 0.9
 
 - React, TypeScript, and Vite foundation.
 - Relative production paths for GitHub Pages repository hosting.
@@ -31,7 +31,7 @@
 - Safe rejection of unsupported schemas and unknown archetype, career, specialization, skill, talent-node, and item IDs.
 - Exact draft refunds for cash- and Favor-purchased gear and attachments; reward items refund no resources.
 - Build-time checks for relative GitHub Pages paths, PWA scope, complete application-shell precaching, and offline navigation fallback.
-- Twenty-four passing rules-engine, graph, source-count, cross-reference, equipment, turn-state, migration, refund, and transfer tests.
+- Thirty passing rules-engine, graph, source-count, cross-reference, equipment, turn-state, migration, refund, transfer, and Manual-data tests.
 - Complete GitHub Pages deployment workflow, `.nojekyll` output, and public deployment.
 - Three compact equipment-category selectors for weapons, armor, and general gear.
 - Visible two-way connector paths on all specialization trees, with reachable and purchased path states.
@@ -48,11 +48,15 @@
 - Full manual-grade statistics in creation and Play equipment previews and expanded inventory entries.
 - Signed Play money adjustment control and opaque compact talent nodes that keep connectors behind text.
 - Timestamp-aware backup merging that deduplicates matching character IDs and preserves the newest record.
+- Thirty-three indexed gameplay summaries covering core checks, structured encounters, combat, social encounters, health and recovery, field conditions, and equipment.
+- Expanded player-facing guidance for all 32 Sierra Zero skills, including common uses and standard social opposition.
+- Dedicated 27-entry personal-scale item-quality reference with active/passive status, standard activation costs, and concise effects.
+- Combat and Social dashboard dialogs for Advantage, Threat, Triumph, and Despair spends, including CRB encounter-table options and cross-rule reminders.
 
 ## Deliberately deferred
 
 - Mechanical automation for every free-form talent and attachment effect; source rules remain visible even where automation is not appropriate.
-- Migration functions for a future schema version; checkpoint 0.8 remains schema version 1, normalizes legacy motivation strings, and safely rejects newer imports.
+- Migration functions for a future schema version; checkpoint 0.9 remains schema version 1, normalizes legacy motivation strings, and safely rejects newer imports.
 - Manual/GM-created custom items.
 - Final player-facing career and specialization descriptions during bulk data import.
 - Real-device installation, offline relaunch, update, accessibility, and complete acceptance-scenario testing.

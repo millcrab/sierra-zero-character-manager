@@ -1,11 +1,12 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { archetypes, attachments, careers, items, skills, specializations, talents } from "../data/canonical";
+import { gameplayRules, qualityGuides, skillGuides } from "../data/gameplay";
 import { maneuvers } from "../data/maneuvers";
 import { motivationKeys, motivationLabels, motivationOptions } from "../data/motivations";
 import { GameText } from "./DiceSymbols";
 import { ItemDetails } from "./ItemDetails";
 
-type ManualTab = "rules" | "archetypes" | "careers" | "specializations" | "talents" | "skills" | "equipment";
+type ManualTab = "rules" | "archetypes" | "careers" | "specializations" | "talents" | "skills" | "qualities" | "equipment";
 
 interface ManualEntry {
   id: string;
@@ -22,6 +23,7 @@ const tabs: Array<[ManualTab, string]> = [
   ["specializations", "Specs"],
   ["talents", "Talents"],
   ["skills", "Skills"],
+  ["qualities", "Qualities"],
   ["equipment", "Equipment"]
 ];
 
@@ -72,6 +74,17 @@ function ruleEntries(): ManualEntry[] {
       searchText: "ordinary controlled restricted advanced attachments hard points modifications",
       content: <><p>Ordinary and Controlled equipment may be acquired normally. Restricted equipment carries an additional Favor cost. Advanced equipment is obtained only as a reward.</p><p>Attachments are installed on compatible equipment and consume the item's available hard points. Installed modifications appear with the individual item.</p></>
     },
+    ...gameplayRules.map((rule) => ({
+      id: `gameplay-${rule.id}`,
+      title: rule.title,
+      subtitle: `${rule.category} · ${rule.summary}`,
+      searchText: `${rule.category} ${rule.summary} ${rule.sections.flatMap((section) => [...(section.paragraphs ?? []), ...(section.bullets ?? [])]).join(" ")}`,
+      content: <>{rule.sections.map((section, index) => <section className="manual-rule-section" key={`${rule.id}-${section.heading ?? index}`}>
+        {section.heading && <h4>{section.heading}</h4>}
+        {section.paragraphs?.map((paragraph) => <p key={paragraph}><GameText>{paragraph}</GameText></p>)}
+        {section.bullets && <ul>{section.bullets.map((bullet) => <li key={bullet}><GameText>{bullet}</GameText></li>)}</ul>}
+      </section>)}<p className="manual-source">Source: {rule.source}</p></>
+    })),
     ...maneuvers.map((maneuver) => ({
       id: `maneuver-${maneuver.id}`,
       title: maneuver.name,
@@ -112,12 +125,22 @@ function entriesFor(tab: ManualTab): ManualEntry[] {
     searchText: `${talent.rules} ${talent.tags.join(" ")}`,
     content: <><p><GameText>{talent.rules}</GameText></p>{talent.tags.length > 0 && <p><strong>Tags:</strong> {talent.tags.join(", ")}</p>}</>
   }));
-  if (tab === "skills") return skills.map((skill) => ({
-    id: skill.id,
-    title: skill.name,
-    subtitle: `${skill.category} skill · ${skill.characteristic}`,
-    searchText: `${skill.category} ${skill.characteristic}`,
-    content: <p><strong>Linked characteristic:</strong> {skill.characteristic}. <strong>Category:</strong> {skill.category}.</p>
+  if (tab === "skills") return skills.map((skill) => {
+    const guide = skillGuides.find((record) => record.skillId === skill.id);
+    return {
+      id: skill.id,
+      title: skill.name,
+      subtitle: `${skill.category} skill · ${skill.characteristic}`,
+      searchText: `${skill.category} ${skill.characteristic} ${guide?.summary ?? ""} ${guide?.commonUses.join(" ") ?? ""} ${guide?.opposedBy ?? ""}`,
+      content: <><p><strong>Linked characteristic:</strong> {skill.characteristic}. <strong>Category:</strong> {skill.category}.</p>{guide && <><p><GameText>{guide.summary}</GameText></p><h4>Common uses</h4><ul>{guide.commonUses.map((use) => <li key={use}><GameText>{use}</GameText></li>)}</ul>{guide.opposedBy && <p><strong>Normally opposed by:</strong> {guide.opposedBy}</p>}<p className="manual-source">Source: {guide.source}</p></>}</>
+    };
+  });
+  if (tab === "qualities") return qualityGuides.map((quality) => ({
+    id: quality.id,
+    title: quality.name,
+    subtitle: `${quality.kind === "active" ? "Active" : "Passive"} quality${quality.activation ? ` · ${quality.activation}` : ""}`,
+    searchText: `${quality.kind} ${quality.activation ?? ""} ${quality.summary}`,
+    content: <><p><GameText>{quality.summary}</GameText></p>{quality.activation && <p><strong>Standard activation:</strong> {quality.activation}.</p>}<p className="manual-source">Source: {quality.source}</p></>
   }));
   return [
     ...items.map((item) => ({
