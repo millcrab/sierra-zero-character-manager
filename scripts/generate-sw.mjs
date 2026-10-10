@@ -20,14 +20,19 @@ const assets = (await filesUnder(rootPath)).map((path) => `./${relative(rootPath
 const source = `const CACHE = "sierra-zero-shell-v${packageJson.version}";
 const PRECACHE = ${JSON.stringify(assets, null, 2)};
 self.addEventListener("install", event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PRECACHE)));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
 });
 self.addEventListener("message", event => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 self.addEventListener("activate", event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))));
-  self.clients.claim();
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)));
+    await self.clients.claim();
+    const windows = await self.clients.matchAll({ type: "window" });
+    await Promise.all(windows.map(client => client.navigate(client.url)));
+  })());
 });
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;

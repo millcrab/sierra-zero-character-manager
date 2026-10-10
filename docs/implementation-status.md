@@ -1,6 +1,6 @@
 # Implementation Status
 
-## Completed through checkpoint 0.9
+## Completed through checkpoint 0.10
 
 - React, TypeScript, and Vite foundation.
 - Relative production paths for GitHub Pages repository hosting.
@@ -43,7 +43,7 @@
 - Confirmed character deletion from the local roster.
 - Compact four-column specialization maps with bidirectional paths, tappable full-rules dialogs, and per-tree expanded mode.
 - Global searchable, alphabetized, and tabbed Manual reference for setting rules and the complete mechanical corpus.
-- User-controlled PWA update notification, installed-version display, and update-and-restart action.
+- Automatic PWA shell replacement and reload after deployment, with installed-version display and update-and-restart fallback.
 - Explicit creation choice between 10 starting Favor and 10 bonus starting XP, with safe switching rules.
 - Full manual-grade statistics in creation and Play equipment previews and expanded inventory entries.
 - Signed Play money adjustment control and opaque compact talent nodes that keep connectors behind text.
@@ -56,7 +56,7 @@
 ## Deliberately deferred
 
 - Mechanical automation for every free-form talent and attachment effect; source rules remain visible even where automation is not appropriate.
-- Migration functions for a future schema version; checkpoint 0.9 remains schema version 1, normalizes legacy motivation strings, and safely rejects newer imports.
+- Migration functions for a future schema version; checkpoint 0.10 remains schema version 1, normalizes legacy motivation strings, and safely rejects newer imports.
 - Manual/GM-created custom items.
 - Final player-facing career and specialization descriptions during bulk data import.
 - Real-device installation, offline relaunch, update, accessibility, and complete acceptance-scenario testing.

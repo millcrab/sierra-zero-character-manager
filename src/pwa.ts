@@ -1,9 +1,19 @@
 export const UPDATE_READY_EVENT = "sierra-zero-update-ready";
 
 let registration: ServiceWorkerRegistration | null = null;
+let updateReady = false;
+const updateListeners = new Set<() => void>();
 
 function announceWaitingWorker() {
+  updateReady = true;
   window.dispatchEvent(new CustomEvent(UPDATE_READY_EVENT));
+  updateListeners.forEach((listener) => listener());
+}
+
+export function subscribeToServiceWorkerUpdates(listener: () => void) {
+  updateListeners.add(listener);
+  if (updateReady) queueMicrotask(listener);
+  return () => { updateListeners.delete(listener); };
 }
 
 export function registerServiceWorker() {

@@ -43,7 +43,7 @@ import { ArchetypeAbilities } from "./components/ArchetypeAbilities";
 import { findMotivationOption, motivationKeys, motivationLabels, motivationOptions } from "./data/motivations";
 import { deleteCharacter, listCharacters, saveCharacter, saveCharacters } from "./storage/db";
 import { mergeImportedCharacters, parseBackup, serializeBackup } from "./storage/transfer";
-import { activateWaitingWorker, UPDATE_READY_EVENT } from "./pwa";
+import { activateWaitingWorker, subscribeToServiceWorkerUpdates } from "./pwa";
 import { useSwipeTabs } from "./hooks/useSwipeTabs";
 import type { AcquisitionPayment, Character, CharacteristicKey, MotivationKey, TalentRecord } from "./types";
 import packageJson from "../package.json";
@@ -118,9 +118,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const announce = () => setUpdateReady(true);
-    window.addEventListener(UPDATE_READY_EVENT, announce);
-    return () => window.removeEventListener(UPDATE_READY_EVENT, announce);
+    return subscribeToServiceWorkerUpdates(() => setUpdateReady(true));
   }, []);
 
   useEffect(() => {
