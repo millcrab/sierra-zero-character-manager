@@ -34,7 +34,7 @@ export function TalentTree({ specialization, purchasedIds, availableXp, interact
   return (
     <section className="talent-tree-container" aria-label={`${specialization.name} talent tree`}>
       <div className="talent-tree-toolbar"><button className="secondary" type="button" onClick={() => setExpanded((current) => !current)}>{expanded ? "Collapse all" : "Expand all"}</button><span>Tap a talent for its complete rules.</span></div>
-      <div className="talent-tree-scroller">
+      <div className="talent-tree-scroller" data-swipe-ignore>
       <div className={`talent-tree ${expanded ? "is-expanded" : "is-compact"}`}>
       {specialization.edges.map(([leftId, rightId]) => {
         const left = specialization.nodes.find((node) => node.id === leftId)!;

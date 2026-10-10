@@ -24,4 +24,11 @@ describe("encounter symbol spend references", () => {
     expect(symbolSpendReferences.social.positive.some((spend) => spend.id === "social-learn-motivation")).toBe(true);
     expect(symbolSpendReferences.social.negative.some((spend) => spend.id === "social-false-read")).toBe(true);
   });
+
+  it("uses one explicit flexible Triumph and Despair row per scene", () => {
+    for (const reference of Object.values(symbolSpendReferences)) {
+      expect(reference.positive.filter((spend) => spend.id.includes("triumph-as-advantage"))).toHaveLength(1);
+      expect(reference.negative.filter((spend) => spend.id.includes("despair-as-threat"))).toHaveLength(1);
+    }
+  });
 });

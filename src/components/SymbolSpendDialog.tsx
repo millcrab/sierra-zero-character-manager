@@ -1,27 +1,20 @@
 import { useEffect, useId } from "react";
 import { symbolSpendReferences } from "../data/symbolSpends";
-import type { EncounterKind, NarrativeSymbol, SymbolSpend } from "../data/symbolSpends";
-
-const symbolNames: Record<NarrativeSymbol, string> = {
-  advantage: "Advantage",
-  triumph: "Triumph",
-  threat: "Threat",
-  despair: "Despair"
-};
+import type { EncounterKind, SymbolSpend } from "../data/symbolSpends";
+import { NarrativeSymbolIcon } from "./NarrativeSymbolIcon";
 
 function CostBadge({ spend }: { spend: SymbolSpend }) {
-  const { count, symbol, alternative } = spend.cost;
-  const primary = `${count} ${symbolNames[symbol]}`;
-  return <span className={`symbol-cost symbol-cost--${symbol}`}>{primary}{alternative ? ` or 1 ${symbolNames[alternative]}` : ""}</span>;
+  const { count, symbol } = spend.cost;
+  return <span className={`symbol-cost symbol-cost--${symbol}`}><span className="symbol-count">{count}</span><NarrativeSymbolIcon symbol={symbol} /></span>;
 }
 
 function SpendList({ title, spends, tone }: { title: string; spends: SymbolSpend[]; tone: "positive" | "negative" }) {
   return <section className={`symbol-spend-group symbol-spend-group--${tone}`}>
     <h3>{title}</h3>
-    <div className="symbol-spend-list">{spends.map((spend) => <article key={spend.id}>
-      <CostBadge spend={spend} />
-      <p>{spend.effect}</p>
-    </article>)}</div>
+    <table className="symbol-spend-list"><tbody>{spends.map((spend) => <tr key={spend.id}>
+      <th scope="row"><CostBadge spend={spend} /></th>
+      <td>{spend.effect}</td>
+    </tr>)}</tbody></table>
   </section>;
 }
 
@@ -45,8 +38,8 @@ export function SymbolSpendDialog({ scene, onClose }: { scene: EncounterKind; on
       </div>
       <p className="symbol-spend-intro">Choose effects after symbols cancel. The table costs are guidance; the fiction and the GM determine what makes sense.</p>
       <div className="symbol-spend-columns">
-        <SpendList title="Advantage & Triumph" spends={reference.positive} tone="positive" />
-        <SpendList title="Threat & Despair" spends={reference.negative} tone="negative" />
+        <SpendList title="Positive results" spends={reference.positive} tone="positive" />
+        <SpendList title="Complications" spends={reference.negative} tone="negative" />
       </div>
       <aside className="symbol-spend-reminders"><h3>Remember</h3><ul>{reference.reminders.map((reminder) => <li key={reminder}>{reminder}</li>)}</ul></aside>
       <p className="symbol-spend-source">Compiled and paraphrased from {reference.source}.</p>

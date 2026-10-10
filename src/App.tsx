@@ -39,10 +39,12 @@ import { DicePoolDisplay, GameText } from "./components/DiceSymbols";
 import { ItemDetails } from "./components/ItemDetails";
 import { Manual } from "./components/Manual";
 import { SymbolSpendDialog } from "./components/SymbolSpendDialog";
+import { ArchetypeAbilities } from "./components/ArchetypeAbilities";
 import { findMotivationOption, motivationKeys, motivationLabels, motivationOptions } from "./data/motivations";
 import { deleteCharacter, listCharacters, saveCharacter, saveCharacters } from "./storage/db";
 import { mergeImportedCharacters, parseBackup, serializeBackup } from "./storage/transfer";
 import { activateWaitingWorker, UPDATE_READY_EVENT } from "./pwa";
+import { useSwipeTabs } from "./hooks/useSwipeTabs";
 import type { AcquisitionPayment, Character, CharacteristicKey, MotivationKey, TalentRecord } from "./types";
 import packageJson from "../package.json";
 import "./styles.css";
@@ -216,12 +218,15 @@ export default function App() {
     {view === "summary" && <section className="content-stack">
       <div className="identity-panel"><Portrait character={active} large /><div><p className="eyebrow">Active responder</p><h2>{active.profile.name}</h2><p>{archetype.name} · {career.name} · {active.build.specializationIds.map((id) => findSpecialization(id).name).join(" / ")}</p></div></div>
       <StatusGrid character={active} />
-      <section className="paper-panel"><p className="file-code">ARCHETYPE CAPABILITY</p><h3>{archetype.abilities[0]?.name}</h3><p><GameText>{archetype.abilities[0]?.rules ?? ""}</GameText></p></section>
+      <section className="paper-panel"><p className="file-code">ARCHETYPE CAPABILITIES</p><ArchetypeAbilities archetype={archetype} /></section>
       <MotivationSummary character={active} />
-      <button className="secondary" onClick={() => downloadBackup([active], characterBackupFilename(active))}>Export this character</button>
+      <div className="export-actions">
+        <PdfExportButton character={active} />
+        <button className="secondary" onClick={() => downloadBackup([active], characterBackupFilename(active))}>Export backup file</button>
+      </div>
     </section>}
-    {view === "play" && <PlayView character={active} onUpdate={updateActive} />}
-    {view === "advance" && <AdvanceView character={active} onUpdate={updateActive} onSessionUpdate={applySessionUpdateWithBackup} />}
+    {view === "play" && <PlayView character={active} onUpdate={updateActive} onSummary={() => navigate("summary")} />}
+    {view === "advance" && <AdvanceView character={active} onUpdate={updateActive} onSessionUpdate={applySessionUpdateWithBackup} onSummary={() => navigate("summary")} />}
     {active.status === "complete" && <nav className="bottom-nav" aria-label="Character mode">
       <button className={view === "summary" ? "active" : ""} onClick={() => navigate("summary")}>Summary</button>
       <button className={view === "play" ? "active" : ""} onClick={() => navigate("play")}>Play</button>
@@ -232,6 +237,22 @@ export default function App() {
 
 function CoverScreen({ onEnter }: { onEnter: () => void }) {
   return <button className="cover-screen" type="button" onClick={onEnter} aria-label="Open Sierra Zero Character Manager"><img src={`${import.meta.env.BASE_URL}sierra-zero-cover.png`} alt="Sierra Zero: A Genesys setting of paranormal crisis response" /><span>Tap anywhere to open the files</span></button>;
+}
+
+function PdfExportButton({ character }: { character: Character }) {
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
+  const exportPdf = async () => {
+    setExporting(true);
+    setError("");
+    try {
+      const { downloadCharacterSheetPdf } = await import("./export/characterSheetPdf");
+      await downloadCharacterSheetPdf(character);
+    }
+    catch { setError("The PDF could not be created. Try exporting again."); }
+    finally { setExporting(false); }
+  };
+  return <><button className="primary" disabled={exporting} onClick={() => void exportPdf()}>{exporting ? "Preparing PDF..." : "Export character sheet PDF"}</button>{error && <span className="export-error" role="alert">{error}</span>}</>;
 }
 
 function UpdateBanner({ visible }: { visible: boolean }) {
@@ -308,7 +329,7 @@ function CreationView({ character, onUpdate, onComplete }: { character: Characte
   });
   return <section className="content-stack creation-flow">
     <div className="progress-line"><span style={{ width: `${step * (100 / 6)}%` }} /></div><p className="file-code">INTAKE / STEP {step} OF 6</p>
-    {step === 1 && <section className="paper-panel selection-card selected"><p className="eyebrow">Archetype</p><label className="field-label">Choose archetype<select value={archetype.id} onChange={(event) => chooseArchetype(event.target.value)}>{archetypes.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label><h2>{archetype.name}</h2><p><GameText>{archetype.description}</GameText></p><CharacteristicStrip values={archetype.baseCharacteristics} /><p><strong>{archetype.startingXp} starting XP</strong> · Wounds {archetype.woundBase} + Brawn · Strain {archetype.strainBase} + Willpower</p><p><GameText>{archetype.startingSkillInstructions ?? ""}</GameText></p><h3>{archetype.abilities[0]?.name}</h3><p><GameText>{archetype.abilities[0]?.rules ?? ""}</GameText></p></section>}
+    {step === 1 && <section className="paper-panel selection-card selected"><p className="eyebrow">Archetype</p><label className="field-label">Choose archetype<select value={archetype.id} onChange={(event) => chooseArchetype(event.target.value)}>{archetypes.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label><h2>{archetype.name}</h2><p><GameText>{archetype.description}</GameText></p><CharacteristicStrip values={archetype.baseCharacteristics} /><p><strong>{archetype.startingXp} starting XP</strong> · Wounds {archetype.woundBase} + Brawn · Strain {archetype.strainBase} + Willpower</p><p><GameText>{archetype.startingSkillInstructions ?? ""}</GameText></p><ArchetypeAbilities archetype={archetype} /></section>}
     {step === 2 && <section className="paper-panel selection-card selected"><p className="eyebrow">Career and starting specialization</p><div className="update-fields"><label className="field-label">Career<select value={career.id} onChange={(event) => chooseCareer(event.target.value)}>{careers.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label><label className="field-label">Starting specialization<select value={specialization.id} onChange={(event) => chooseSpecialization(event.target.value)}>{career.specializationIds.map((id) => <option key={id} value={id}>{findSpecialization(id).name}</option>)}</select></label></div><p className="skill-string">Career skills: {career.careerSkillIds.map(skillName).join(", ")}</p><p className="skill-string">Bonus career skills: {specialization.bonusCareerSkillIds.map(skillName).join(", ")}</p><StartingSkillChoices character={character} onUpdate={onUpdate} /></section>}
     {step === 3 && <StartingXpPanel character={character} onUpdate={onUpdate} />}
     {step === 4 && <GearPanel character={character} onUpdate={onUpdate} creation />}
@@ -450,7 +471,7 @@ function InventoryRow({ character, instanceId, onUpdate }: { character: Characte
   return <details className="inventory-row"><summary><span><strong>{item.name}</strong><small>{item.category} · {instance.equipped ? "Equipped" : "Carried"} · {remainingHardPoints(character, instanceId)} HP open{instance.attachmentIds.length ? ` · ${instance.attachmentIds.length} mod${instance.attachmentIds.length === 1 ? "" : "s"}` : ""}</small></span></summary><div className="inventory-body"><ItemDetails item={item} /><div className="inline-actions"><button className={instance.equipped ? "primary" : "secondary"} onClick={() => onUpdate((draft) => setItemEquipped(draft, instanceId, !instance.equipped))}>{instance.equipped ? "Equipped" : "Equip"}</button>{canModify && <button className="secondary" onClick={() => setModifying(true)}>Modify</button>}{character.status === "draft" && <button className="secondary" onClick={() => onUpdate((draft) => removeInventoryFromDraft(draft, instanceId))}>Remove and refund</button>}</div></div>{modifying && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModifying(false); }}><section className="modification-dialog" role="dialog" aria-modal="true" aria-labelledby={`modify-${instanceId}`}><div className="section-heading"><div><p className="eyebrow">Item workshop</p><h2 id={`modify-${instanceId}`}>Modify {item.name}</h2></div><button className="text-button" onClick={() => setModifying(false)}>Close</button></div><p><strong>{remainingHardPoints(character, instanceId)} of {item.hardPoints} hard points available</strong></p>{instance.attachmentIds.length > 0 && <div className="installed-modifications"><h3>Installed</h3>{instance.attachmentIds.map((id) => { const record = attachments.find((candidate) => candidate.id === id)!; return <article key={id}><strong>{record.name}</strong><small>{record.hardPoints} HP</small><p><GameText>{record.effect}</GameText></p>{character.status === "draft" && <button className="text-button" onClick={() => onUpdate((draft) => removeAttachmentFromDraft(draft, instanceId, id))}>Remove and refund</button>}</article>; })}</div>}{eligible.length > 0 ? <div className="available-modifications"><h3>Available modifications</h3><label className="field-label">Modification<select value={attachmentId} onChange={(event) => setAttachmentId(event.target.value)}>{eligible.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label>{attachment && <div className="modification-preview"><small>{attachment.hardPoints} HP · ${attachment.price} · Rarity {attachment.rarity} · {attachment.access}</small><p><GameText>{attachment.effect}</GameText></p><div className="inline-actions">{canAcquireNormally(attachment.access) ? <><button className="secondary" disabled={character.resources.money < attachment.price || !canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("cash")}>Install ${attachment.price}</button><button className="secondary" disabled={character.resources.favor < itemFavorCost(attachment) || !canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("favor")}>Install {itemFavorCost(attachment)} Favor</button></> : <button className="secondary" disabled={!canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("reward")}>Install reward</button>}</div></div>}</div> : <p>No additional compatible modifications are available.</p>}</section></div>}</details>;
 }
 
-function PlayView({ character, onUpdate }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void }) {
+function PlayView({ character, onUpdate, onSummary }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void; onSummary: () => void }) {
   const [tab, setTab] = useState<PlayTab>(() => {
     const saved = currentHistoryState()?.playTab;
     return saved && playTabs.includes(saved) ? saved : "dashboard";
@@ -470,11 +491,12 @@ function PlayView({ character, onUpdate }: { character: Character; onUpdate: (up
     setTab(nextTab);
   };
   const labels: Array<[PlayTab, string]> = [["dashboard", "Dashboard"], ["combat", "Combat"], ["social", "Social"], ["skills", "Skills"], ["gear", "Gear"], ["spec", "Spec"]];
-  return <><Subnav items={labels} active={tab} onSelect={selectTab} />{tab === "dashboard" && <Dashboard character={character} onUpdate={onUpdate} />}{tab === "combat" && <CombatView character={character} onUpdate={onUpdate} />}{tab === "social" && <SocialView character={character} onUpdate={onUpdate} />}{tab === "skills" && <SkillsReference character={character} />}{tab === "gear" && <section className="content-stack"><GearPanel character={character} onUpdate={onUpdate} /></section>}{tab === "spec" && <SpecReference character={character} />}</>;
+  const swipeHandlers = useSwipeTabs(playTabs, tab, selectTab, onSummary);
+  return <div className="swipe-drawer" {...swipeHandlers}><Subnav items={labels} active={tab} onSelect={selectTab} />{tab === "dashboard" && <Dashboard character={character} onUpdate={onUpdate} />}{tab === "combat" && <CombatView character={character} onUpdate={onUpdate} />}{tab === "social" && <SocialView character={character} onUpdate={onUpdate} />}{tab === "skills" && <SkillsReference character={character} />}{tab === "gear" && <section className="content-stack"><GearPanel character={character} onUpdate={onUpdate} /></section>}{tab === "spec" && <SpecReference character={character} />}</div>;
 }
 
 function Subnav<T extends string>({ items, active, onSelect }: { items: Array<[T, string]>; active: T; onSelect: (value: T) => void }) {
-  return <nav className="mode-tabs">{items.map(([id, label]) => <button key={id} className={active === id ? "active" : ""} onClick={() => onSelect(id)}>{label}</button>)}</nav>;
+  return <nav className="mode-tabs" data-swipe-ignore>{items.map(([id, label]) => <button key={id} className={active === id ? "active" : ""} onClick={() => onSelect(id)}>{label}</button>)}</nav>;
 }
 
 function Dashboard({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
@@ -525,7 +547,7 @@ function ResourceControls({ character, onUpdate, strainOnly = false }: { charact
   return <section className="paper-panel resource-controls">{!strainOnly && <div><span>Wounds</span><div className="rank-controls"><button className="secondary" onClick={() => onUpdate((draft) => applyWounds(draft, -1))}>−</button><b>{character.resources.wounds} / {status.wounds}</b><button className="secondary" onClick={() => onUpdate((draft) => applyWounds(draft, 1))}>+</button></div></div>}<div><span>Strain</span><div className="rank-controls"><button className="secondary" onClick={() => onUpdate((draft) => applyStrain(draft, -1))}>−</button><b>{character.resources.strain} / {status.strain}</b><button className="secondary" onClick={() => onUpdate((draft) => applyStrain(draft, 1))}>+</button></div></div></section>;
 }
 
-function AdvanceView({ character, onUpdate, onSessionUpdate }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void; onSessionUpdate: (xpChange: number, favorChange: number) => void }) {
+function AdvanceView({ character, onUpdate, onSessionUpdate, onSummary }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void; onSessionUpdate: (xpChange: number, favorChange: number) => void; onSummary: () => void }) {
   const [tab, setTab] = useState<AdvanceTab>(() => {
     const saved = currentHistoryState()?.advanceTab;
     return saved && advanceTabs.includes(saved) ? saved : "update";
@@ -545,7 +567,8 @@ function AdvanceView({ character, onUpdate, onSessionUpdate }: { character: Char
     setTab(nextTab);
   };
   const labels: Array<[AdvanceTab, string]> = [["update", "Update"], ["specs", "Specs"], ["skills", "Skills"], ["profile", "Profile"]];
-  return <><Subnav items={labels} active={tab} onSelect={selectTab} />{tab === "update" && <section className="content-stack"><SessionUpdatePanel character={character} onApply={onSessionUpdate} /></section>}{tab === "specs" && <SpecializationAdvancement character={character} onUpdate={onUpdate} />}{tab === "skills" && <section className="content-stack"><SkillAdvancementPanel character={character} onUpdate={onUpdate} /></section>}{tab === "profile" && <section className="content-stack"><ProfileEditor character={character} onUpdate={onUpdate} /><MotivationEditor character={character} onUpdate={onUpdate} /></section>}</>;
+  const swipeHandlers = useSwipeTabs(advanceTabs, tab, selectTab, onSummary);
+  return <div className="swipe-drawer" {...swipeHandlers}><Subnav items={labels} active={tab} onSelect={selectTab} />{tab === "update" && <section className="content-stack"><SessionUpdatePanel character={character} onApply={onSessionUpdate} /></section>}{tab === "specs" && <SpecializationAdvancement character={character} onUpdate={onUpdate} />}{tab === "skills" && <section className="content-stack"><SkillAdvancementPanel character={character} onUpdate={onUpdate} /></section>}{tab === "profile" && <section className="content-stack"><ProfileEditor character={character} onUpdate={onUpdate} /><MotivationEditor character={character} onUpdate={onUpdate} /></section>}</div>;
 }
 
 function SpecializationAdvancement({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
