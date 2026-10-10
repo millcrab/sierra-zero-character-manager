@@ -5,12 +5,12 @@ export type SwipeDestination<T> = { kind: "tab"; tab: T } | { kind: "exit" } | n
 export function swipeDestination<T>(tabs: readonly T[], active: T, horizontalDistance: number): SwipeDestination<T> {
   const index = tabs.indexOf(active);
   if (index < 0 || horizontalDistance === 0) return null;
-  if (horizontalDistance < 0) return index === 0 ? { kind: "exit" } : { kind: "tab", tab: tabs[index - 1] };
+  if (horizontalDistance > 0) return index === 0 ? { kind: "exit" } : { kind: "tab", tab: tabs[index - 1] };
   return index === tabs.length - 1 ? null : { kind: "tab", tab: tabs[index + 1] };
 }
 
 function blocksDrawerSwipe(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest("button, input, select, textarea, a, summary, [role='dialog'], [data-swipe-ignore]"));
+  return target instanceof Element && Boolean(target.closest("[data-swipe-ignore]"));
 }
 
 export function useSwipeTabs<T>(tabs: readonly T[], active: T, onSelect: (tab: T) => void, onExit: () => void) {

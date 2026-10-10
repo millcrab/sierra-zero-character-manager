@@ -259,11 +259,10 @@ h3 { margin-bottom: 8px; }
 .symbol-spend-list { width: 100%; border-collapse: collapse; }
 .symbol-spend-list th, .symbol-spend-list td { padding: 5px 3px; border-top: 1px solid #d0c9bd; vertical-align: middle; }
 .symbol-spend-list tr:first-child th, .symbol-spend-list tr:first-child td { border-top: 0; }
-.symbol-spend-list th { width: 49px; text-align: left; }
+.symbol-spend-list th { width: 68px; text-align: left; }
 .symbol-spend-list td { color: #47443f; font-size: .78rem; line-height: 1.28; }
-.symbol-cost { width: 42px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 3px 4px; color: white; font: 700 .7rem "IBM Plex Mono", monospace; }
-.symbol-count { min-width: 8px; text-align: center; }
-.narrative-symbol { width: 20px; height: 20px; display: inline-grid; place-items: center; color: white; font: 400 19px/1 "Genesys Symbols"; font-synthesis: none; text-transform: none; -webkit-font-smoothing: antialiased; }
+.symbol-cost { min-width: 32px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 1px; padding: 3px 4px; color: white; }
+.narrative-symbol { width: 18px; height: 20px; display: inline-grid; place-items: center; color: white; font: 400 19px/1 "Genesys Symbols"; font-synthesis: none; text-transform: none; -webkit-font-smoothing: antialiased; }
 .symbol-cost--advantage { background: #2e7163; }
 .symbol-cost--triumph { background: #946b16; }
 .symbol-cost--threat { background: #735070; }

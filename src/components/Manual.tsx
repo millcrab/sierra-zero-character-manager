@@ -177,7 +177,7 @@ export function Manual({ onRoster, onReturnToAgent, hasActiveCharacter }: { onRo
 
   return <main className="app-shell manual-screen swipe-drawer" {...swipeHandlers}>
     <header className="manual-header"><div><p className="eyebrow">OEC field reference</p><h1>Manual</h1></div><div className="manual-header__actions"><button className="secondary" onClick={onRoster}>Roster</button>{hasActiveCharacter && <button className="primary" onClick={onReturnToAgent}>Agent file</button>}</div></header>
-    <nav className="manual-tabs" aria-label="Manual sections" data-swipe-ignore>{tabs.map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => selectTab(id)}>{label}</button>)}</nav>
+    <nav className="manual-tabs" aria-label="Manual sections">{tabs.map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => selectTab(id)}>{label}</button>)}</nav>
     <section className="manual-content"><label className="manual-search"><span>Search {tabs.find(([id]) => id === tab)?.[1]}</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search names, rules, tags, and descriptions" /></label><p className="manual-count">{entries.length} indexed entr{entries.length === 1 ? "y" : "ies"}</p><div className="manual-index">{entries.map((entry) => <details key={entry.id} className="manual-entry"><summary><span><strong>{entry.title}</strong><small>{entry.subtitle}</small></span></summary><div className="manual-entry__body">{entry.content}</div></details>)}</div>{entries.length === 0 && <div className="empty-state"><span className="stamp">NO MATCHES</span><p>Try a different name, rule term, tag, or category.</p></div>}</section>
   </main>;
 }

@@ -1,11 +1,13 @@
 import { useEffect, useId } from "react";
 import { symbolSpendReferences } from "../data/symbolSpends";
 import type { EncounterKind, SymbolSpend } from "../data/symbolSpends";
-import { NarrativeSymbolIcon } from "./NarrativeSymbolIcon";
+import { NarrativeSymbolIcon, narrativeSymbolLabels } from "./NarrativeSymbolIcon";
 
 function CostBadge({ spend }: { spend: SymbolSpend }) {
   const { count, symbol } = spend.cost;
-  return <span className={`symbol-cost symbol-cost--${symbol}`}><span className="symbol-count">{count}</span><NarrativeSymbolIcon symbol={symbol} /></span>;
+  return <span className={`symbol-cost symbol-cost--${symbol}`} role="img" aria-label={`${count} ${narrativeSymbolLabels[symbol]}`}>
+    {Array.from({ length: count }, (_, index) => <NarrativeSymbolIcon key={index} symbol={symbol} decorative />)}
+  </span>;
 }
 
 function SpendList({ title, spends, tone }: { title: string; spends: SymbolSpend[]; tone: "positive" | "negative" }) {

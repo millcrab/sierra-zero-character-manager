@@ -494,7 +494,7 @@ function PlayView({ character, onUpdate, onSummary }: { character: Character; on
 }
 
 function Subnav<T extends string>({ items, active, onSelect }: { items: Array<[T, string]>; active: T; onSelect: (value: T) => void }) {
-  return <nav className="mode-tabs" data-swipe-ignore>{items.map(([id, label]) => <button key={id} className={active === id ? "active" : ""} onClick={() => onSelect(id)}>{label}</button>)}</nav>;
+  return <nav className="mode-tabs">{items.map(([id, label]) => <button key={id} className={active === id ? "active" : ""} onClick={() => onSelect(id)}>{label}</button>)}</nav>;
 }
 
 function Dashboard({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
