@@ -1,4 +1,5 @@
 import { readFile, readdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join, relative, sep } from "node:path";
 
 const root = new URL("../dist/", import.meta.url);
@@ -17,7 +18,8 @@ async function filesUnder(directory) {
 }
 
 const assets = (await filesUnder(rootPath)).map((path) => `./${relative(rootPath, path).split(sep).join("/")}`);
-const source = `const CACHE = "sierra-zero-shell-v${packageJson.version}";
+const buildFingerprint = createHash("sha256").update(JSON.stringify(assets)).digest("hex").slice(0, 12);
+const source = `const CACHE = "sierra-zero-shell-v${packageJson.version}-${buildFingerprint}";
 const PRECACHE = ${JSON.stringify(assets, null, 2)};
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
