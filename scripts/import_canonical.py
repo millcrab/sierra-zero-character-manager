@@ -158,6 +158,10 @@ def parse_specializations() -> tuple[list[dict], list[dict], list[dict]]:
             if title_counts[title] > 1: talents[talent_id]["ranked"] = True
             nodes.append({"id": node_id, "talentId": talent_id, "row": row, "column": col, "cost": row * 5})
         bonus = [skill_id(x.strip()) for x in skill_match.group(1).split(",")]
+        # Canonical app corrections approved after the source omnibus was published.
+        # Keep these here so rebuilding generated data does not reintroduce old skills.
+        if spec_id == "counselor":
+            bonus = ["charm", "discipline", "leadership", "perception"]
         career_id = None if universal else slug(career_name)
         spec = {"id": spec_id, "name": name, "careerId": career_id, "description": None, "bonusCareerSkillIds": bonus,
                 "nodes": nodes, "edges": parse_edges(page, node_ids), "entryNodeIds": [node_ids[(1, c)] for c in range(1, 5)]}

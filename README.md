@@ -10,6 +10,8 @@ The repository contains the local-first application foundation and the complete 
 
 Checkpoint 0.10 adds polished PDF character-sheet export with owned specialization trees, corrected archetype ability formatting, horizontal swipe navigation across Play, Advance, and Manual tabs, and compact combat/social symbol-spend tables using recognizable Genesys glyphs. It also strengthens PWA updates so a newly deployed version replaces the cached application shell automatically instead of leaving an installed phone app on an older checkpoint.
 
+The October 2026 data correction replaces Medicine with Leadership among Counselor's bonus career skills, ensuring its Leadership-based talents have the required skill support.
+
 The generated canonical data lives in `src/data/canonical.generated.ts`. Rebuild it from the supplied Sierra Zero PDFs with:
 
 ```bash

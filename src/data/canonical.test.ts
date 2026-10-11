@@ -42,4 +42,15 @@ describe("canonical source import", () => {
       expect(attachment.hardPoints).toBeGreaterThanOrEqual(0);
     }
   });
+
+  it("gives Counselor Leadership instead of Medicine", () => {
+    const counselor = specializations.find((record) => record.id === "counselor");
+
+    expect(counselor?.bonusCareerSkillIds).toEqual([
+      "charm",
+      "discipline",
+      "leadership",
+      "perception",
+    ]);
+  });
 });
