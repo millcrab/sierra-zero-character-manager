@@ -45,6 +45,7 @@ import { Manual } from "./components/Manual";
 import { SymbolSpendDialog } from "./components/SymbolSpendDialog";
 import { ArchetypeAbilities } from "./components/ArchetypeAbilities";
 import { findMotivationOption, motivationKeys, motivationLabels, motivationOptions } from "./data/motivations";
+import { archetypeChoiceFields, archetypeChoiceFieldsComplete, archetypeChoiceSummaries } from "./data/archetypeChoices";
 import { deleteCharacter, listCharacters, saveCharacter, saveCharacters } from "./storage/db";
 import { mergeImportedCharacters, parseBackup, serializeBackup } from "./storage/transfer";
 import { activateWaitingWorker, subscribeToServiceWorkerUpdates } from "./pwa";
@@ -223,6 +224,7 @@ export default function App() {
       <StatusGrid character={active} />
       <PerformanceTracker character={active} onUpdate={updateActive} />
       <section className="paper-panel"><p className="file-code">ARCHETYPE CAPABILITIES</p><ArchetypeAbilities archetype={archetype} /></section>
+      <ArchetypeChoiceSummary character={active} />
       <MotivationSummary character={active} />
       <div className="export-actions">
         <PdfExportButton character={active} />
@@ -311,6 +313,7 @@ function CreationView({ character, onUpdate, onComplete }: { character: Characte
     draft.build.purchases.talentNodeIds = [];
     draft.build.startingSkillSelections.archetypeSkillIds = [];
     draft.build.startingSkillSelections.archetypeSkillGroups = {};
+    draft.profile.archetypeAbilityChoices = {};
     return applyStartingSkillSelections(draft, draft.build.startingSkillSelections);
   });
   const chooseCareer = (id: string) => onUpdate((draft) => {
@@ -333,13 +336,13 @@ function CreationView({ character, onUpdate, onComplete }: { character: Characte
   });
   return <section className="content-stack creation-flow">
     <div className="progress-line"><span style={{ width: `${step * (100 / 6)}%` }} /></div><p className="file-code">INTAKE / STEP {step} OF 6</p>
-    {step === 1 && <section className="paper-panel selection-card selected"><p className="eyebrow">Archetype</p><label className="field-label">Choose archetype<select value={archetype.id} onChange={(event) => chooseArchetype(event.target.value)}>{archetypes.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label><h2>{archetype.name}</h2><p><GameText>{archetype.description}</GameText></p><CharacteristicStrip values={archetype.baseCharacteristics} /><p><strong>{archetype.startingXp} starting XP</strong> · Wounds {archetype.woundBase} + Brawn · Strain {archetype.strainBase} + Willpower</p><p><GameText>{archetype.startingSkillInstructions ?? ""}</GameText></p><ArchetypeAbilities archetype={archetype} /></section>}
+    {step === 1 && <section className="paper-panel selection-card selected"><p className="eyebrow">Archetype</p><label className="field-label">Choose archetype<select value={archetype.id} onChange={(event) => chooseArchetype(event.target.value)}>{archetypes.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label><h2>{archetype.name}</h2><p><GameText>{archetype.description}</GameText></p><CharacteristicStrip values={archetype.baseCharacteristics} /><p><strong>{archetype.startingXp} starting XP</strong> · Wounds {archetype.woundBase} + Brawn · Strain {archetype.strainBase} + Willpower</p><p><GameText>{archetype.startingSkillInstructions ?? ""}</GameText></p><ArchetypeAbilities archetype={archetype} /><ArchetypeChoiceFields character={character} onUpdate={onUpdate} /></section>}
     {step === 2 && <section className="paper-panel selection-card selected"><p className="eyebrow">Career and starting specialization</p><div className="update-fields"><label className="field-label">Career<select value={career.id} onChange={(event) => chooseCareer(event.target.value)}>{careers.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label><label className="field-label">Starting specialization<select value={specialization.id} onChange={(event) => chooseSpecialization(event.target.value)}>{career.specializationIds.map((id) => <option key={id} value={id}>{findSpecialization(id).name}</option>)}</select></label></div><p className="skill-string">Career skills: {career.careerSkillIds.map(skillName).join(", ")}</p><p className="skill-string">Bonus career skills: {specialization.bonusCareerSkillIds.map(skillName).join(", ")}</p><StartingSkillChoices character={character} onUpdate={onUpdate} /></section>}
     {step === 3 && <StartingXpPanel character={character} onUpdate={onUpdate} />}
     {step === 4 && <GearPanel character={character} onUpdate={onUpdate} creation />}
     {step === 5 && <MotivationEditor character={character} onUpdate={onUpdate} />}
     {step === 6 && <section className="content-stack review-stack"><ProfileEditor character={character} onUpdate={onUpdate} /><section className="paper-panel"><p className="eyebrow">Review</p><h2>Resulting agent</h2><CharacteristicStrip values={derivedCharacteristics(character)} /><StatusGrid character={character} /><p><strong>{xp} XP unspent.</strong> Unspent XP is legal.</p><p><strong>Skills:</strong> {skills.filter((skill) => skillRank(character, skill.id) > 0).map((skill) => `${skill.name} ${skillRank(character, skill.id)}`).join(", ") || "None"}</p><p><strong>Gear:</strong> {character.inventory.map((instance) => findItem(instance.itemId).name).join(", ") || "None"}</p></section></section>}
-    <div className="wizard-actions"><button className="secondary" disabled={step === 1} onClick={() => window.history.back()}>Back</button>{step < 6 ? <button className="primary" disabled={step === 2 && !startingSkillsComplete(character)} onClick={() => goToStep(step + 1)}>Continue</button> : <button className="primary" disabled={!character.profile.name.trim()} onClick={onComplete}>Create agent</button>}</div>
+    <div className="wizard-actions"><button className="secondary" disabled={step === 1} onClick={() => window.history.back()}>Back</button>{step < 6 ? <button className="primary" disabled={(step === 1 && !archetypeChoiceFieldsComplete(character)) || (step === 2 && !startingSkillsComplete(character))} onClick={() => goToStep(step + 1)}>Continue</button> : <button className="primary" disabled={!character.profile.name.trim() || !archetypeChoiceFieldsComplete(character)} onClick={onComplete}>Create agent</button>}</div>
   </section>;
 }
 
@@ -628,15 +631,20 @@ function SpecializationAdvancement({ character, onUpdate }: { character: Charact
 }
 
 function SessionUpdatePanel({ character, onApply }: { character: Character; onApply: (xpChange: number, favorRoll: number | null) => void }) {
-  const [xpChange, setXpChange] = useState(0);
+  const [xpInput, setXpInput] = useState("");
   const [favorStep, setFavorStep] = useState<"closed" | "choice" | "roll">("closed");
-  const [favorRoll, setFavorRoll] = useState(1);
+  const [favorRollInput, setFavorRollInput] = useState("");
   const [backedUp, setBackedUp] = useState(false);
-  const favorChange = favorChangeFromRoll(character.resources.performance, favorRoll);
+  const parsedXp = Number(xpInput);
+  const xpChange = xpInput.trim() === "" || !Number.isFinite(parsedXp) ? 0 : Math.trunc(parsedXp);
+  const parsedFavorRoll = Number(favorRollInput);
+  const favorRoll = favorRollInput.trim() !== "" && Number.isInteger(parsedFavorRoll) && parsedFavorRoll >= 1 && parsedFavorRoll <= 10 ? parsedFavorRoll : null;
+  const favorChange = favorRoll === null ? 0 : favorChangeFromRoll(character.resources.performance, favorRoll);
   const resultingFavor = Math.max(0, Math.min(100, character.resources.favor + favorChange));
   const finish = (roll: number | null) => {
     onApply(xpChange, roll);
-    setXpChange(0);
+    setXpInput("");
+    setFavorRollInput("");
     setFavorStep("closed");
     setBackedUp(true);
   };
@@ -645,12 +653,12 @@ function SessionUpdatePanel({ character, onApply }: { character: Character; onAp
     <h2>Commit session update</h2>
     <p className="instruction">Record the XP award, then choose whether to resolve the Favor roll. Committing resets once-per-session talent uses and downloads a fresh backup.</p>
     <div className="session-summary"><div><span>Performance</span><strong>{character.resources.performance > 0 ? "+" : ""}{character.resources.performance}</strong></div><div><span>Current Favor</span><strong>{character.resources.favor}</strong></div></div>
-    <div className="update-fields"><label className="field-label">XP change<input type="number" value={xpChange} onChange={(event) => { setXpChange(Number(event.target.value)); setBackedUp(false); }} /></label></div>
+    <div className="update-fields"><label className="field-label">XP change<input type="number" step="5" placeholder="0" value={xpInput} onChange={(event) => { setXpInput(event.target.value); setBackedUp(false); }} /></label></div>
     <button className="primary" onClick={() => { setFavorStep("choice"); setBackedUp(false); }}>Commit session update and backup</button>
     {backedUp && <p className="success-note" role="status">Session changes saved. Character backup downloaded.</p>}
     <p><small>Current totals: {character.resources.xpAwarded} awarded XP · {character.resources.favor} Favor</small></p>
     {favorStep === "choice" && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setFavorStep("closed"); }}><section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="favor-change-heading"><p className="eyebrow">Session commitment</p><h2 id="favor-change-heading">Favor change?</h2><p>Do you want to resolve this character's end-of-session Favor roll now?</p><p><strong>Current Performance: {character.resources.performance > 0 ? "+" : ""}{character.resources.performance}</strong></p><div className="dialog-actions"><button className="secondary" onClick={() => setFavorStep("closed")}>Cancel</button><button className="secondary" onClick={() => finish(null)}>No Favor change</button><button className="primary" onClick={() => setFavorStep("roll")}>Resolve Favor</button></div><p className="field-note">Choosing no Favor change preserves Performance so it can be resolved later.</p></section></div>}
-    {favorStep === "roll" && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setFavorStep("closed"); }}><section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="favor-roll-heading"><p className="eyebrow">End-of-session Favor</p><h2 id="favor-roll-heading">What did you roll?</h2><label className="field-label">d10 result<input type="number" min="1" max="10" step="1" value={favorRoll} onChange={(event) => setFavorRoll(Math.max(1, Math.min(10, Number(event.target.value))))} /></label><div className="favor-calculation"><span>{favorRoll} roll</span><span>{character.resources.performance >= 0 ? "+" : "−"} {Math.abs(character.resources.performance)} Performance</span><strong>{favorChange >= 0 ? "+" : ""}{favorChange} Favor</strong></div><p>Favor will change from <strong>{character.resources.favor}</strong> to <strong>{resultingFavor}</strong>, and Performance will reset to 0.</p><div className="dialog-actions"><button className="secondary" onClick={() => setFavorStep("choice")}>Back</button><button className="primary" onClick={() => finish(favorRoll)}>Apply Favor and backup</button></div></section></div>}
+    {favorStep === "roll" && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setFavorStep("closed"); }}><section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="favor-roll-heading"><p className="eyebrow">End-of-session Favor</p><h2 id="favor-roll-heading">What did you roll?</h2><label className="field-label">d10 result<input type="number" min="1" max="10" step="1" placeholder="1–10" value={favorRollInput} onChange={(event) => setFavorRollInput(event.target.value)} /></label>{favorRoll === null ? <p className="field-note">Enter a whole number from 1 to 10.</p> : <><div className="favor-calculation"><span>{favorRoll} roll</span><span>{character.resources.performance >= 0 ? "+" : "−"} {Math.abs(character.resources.performance)} Performance</span><strong>{favorChange >= 0 ? "+" : ""}{favorChange} Favor</strong></div><p>Favor will change from <strong>{character.resources.favor}</strong> to <strong>{resultingFavor}</strong>, and Performance will reset to 0.</p></>}<div className="dialog-actions"><button className="secondary" onClick={() => setFavorStep("choice")}>Back</button><button className="primary" disabled={favorRoll === null} onClick={() => favorRoll !== null && finish(favorRoll)}>Apply Favor and backup</button></div></section></div>}
   </section>;
 }
 
@@ -661,7 +669,19 @@ function ProfileEditor({ character, onUpdate }: { character: Character; onUpdate
     reader.onload = () => onUpdate((draft) => { draft.profile.portraitDataUrl = String(reader.result); return draft; });
     reader.readAsDataURL(file);
   };
-  return <section className="paper-panel"><p className="eyebrow">Profile</p><h2>Agent file</h2><div className="profile-editor"><Portrait character={character} large /><div><label className="field-label">Character art<input type="file" accept="image/*" onChange={(event) => loadPortrait(event.target.files?.[0])} /></label>{character.profile.portraitDataUrl && <label className="field-label">Portrait vertical framing<input type="range" min="0" max="100" value={character.profile.portraitFocusY ?? 50} onChange={(event) => onUpdate((draft) => { draft.profile.portraitFocusY = Number(event.target.value); return draft; })} /></label>}</div></div><label className="field-label">Agent name<input value={character.profile.name} onChange={(event) => onUpdate((draft) => { draft.profile.name = event.target.value; return draft; })} /></label><label className="field-label">Backstory<textarea rows={7} value={character.profile.backstory} onChange={(event) => onUpdate((draft) => { draft.profile.backstory = event.target.value; return draft; })} /></label></section>;
+  return <section className="paper-panel"><p className="eyebrow">Profile</p><h2>Agent file</h2><div className="profile-editor"><Portrait character={character} large /><div><label className="field-label">Character art<input type="file" accept="image/*" onChange={(event) => loadPortrait(event.target.files?.[0])} /></label>{character.profile.portraitDataUrl && <label className="field-label">Portrait vertical framing<input type="range" min="0" max="100" value={character.profile.portraitFocusY ?? 50} onChange={(event) => onUpdate((draft) => { draft.profile.portraitFocusY = Number(event.target.value); return draft; })} /></label>}</div></div><label className="field-label">Agent name<input value={character.profile.name} onChange={(event) => onUpdate((draft) => { draft.profile.name = event.target.value; return draft; })} /></label><ArchetypeChoiceFields character={character} onUpdate={onUpdate} /><label className="field-label">Backstory<textarea rows={7} value={character.profile.backstory} onChange={(event) => onUpdate((draft) => { draft.profile.backstory = event.target.value; return draft; })} /></label></section>;
+}
+
+function ArchetypeChoiceFields({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  const fields = archetypeChoiceFields(character.build.archetypeId);
+  if (!fields.length) return null;
+  return <section className="archetype-choice-fields"><p className="eyebrow">Ability choices</p>{fields.map((field) => <label className="field-label" key={field.id}>{field.label}<input required={field.required} placeholder={field.placeholder} value={character.profile.archetypeAbilityChoices[field.id] ?? ""} onChange={(event) => onUpdate((draft) => { draft.profile.archetypeAbilityChoices[field.id] = event.target.value; return draft; })} /><small>{field.abilityName} uses this choice during play.</small></label>)}</section>;
+}
+
+function ArchetypeChoiceSummary({ character }: { character: Character }) {
+  const choices = archetypeChoiceSummaries(character);
+  if (!choices.length) return null;
+  return <section className="paper-panel"><p className="eyebrow">Archetype choices</p><div className="motivation-grid">{choices.map((choice) => <div key={choice.label}><span>{choice.label}</span><p><strong>{choice.value}</strong></p></div>)}</div></section>;
 }
 
 function MotivationEditor({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {

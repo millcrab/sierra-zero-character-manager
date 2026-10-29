@@ -50,6 +50,7 @@ export function normalizeCharacter(character: Character): Character {
     }
   }
   character.profile.portraitFocusY ??= 50;
+  character.profile.archetypeAbilityChoices ??= {};
   character.inventory = character.inventory.map((instance) => ({ ...instance, attachmentIds: instance.attachmentIds ?? [], attachmentAcquisitions: instance.attachmentAcquisitions ?? {} }));
   character.criticalInjuries ??= [];
   return character;

@@ -18,4 +18,18 @@ describe("character sheet model", () => {
     expect(sheet.abilities[0].rules).not.toMatch(/^Focused Potential/);
     expect(character).toEqual(before);
   });
+
+  it("records structured and free-text archetype ability choices", () => {
+    const character = createCharacterDraft("scion");
+    character.profile.archetypeAbilityChoices["inheritance-network"] = "The Vale Foundation";
+    character.build.startingSkillSelections.archetypeSkillGroups = {
+      inheritance: ["commerce-knowledge"],
+      claim: ["authority"]
+    };
+    expect(createCharacterSheetModel(character).archetypeChoices).toEqual([
+      { label: "Actual inheritance network", value: "The Vale Foundation" },
+      { label: "Inheritance network and ranked skill", value: "Commerce - Knowledge" },
+      { label: "Claim", value: "Authority - Leadership" }
+    ]);
+  });
 });

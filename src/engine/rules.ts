@@ -471,6 +471,7 @@ export function createCharacterDraft(
       portraitDataUrl: null,
       portraitFocusY: 50,
       backstory: "",
+      archetypeAbilityChoices: {},
       motivations: {
         strength: { optionId: "", detail: "" },
         flaw: { optionId: "", detail: "" },

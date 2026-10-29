@@ -180,6 +180,7 @@ export function renderCharacterSheetPdf(model: CharacterSheetModel, portraitJpeg
   if (portraitJpeg) {
     doc.setDrawColor(...charcoal); doc.setLineWidth(1); doc.rect(pageWidth - margin - 102, 48, 102, 128);
     doc.addImage(portraitJpeg, "JPEG", pageWidth - margin - 99, 51, 96, 122, undefined, "FAST");
+    y = Math.max(y, 184);
   }
 
   section("Operational status");
@@ -211,6 +212,9 @@ export function renderCharacterSheetPdf(model: CharacterSheetModel, portraitJpeg
   });
 
   section("Archetype capabilities");
+  if (model.archetypeChoices.length) {
+    model.archetypeChoices.forEach((choice) => ruleBlock(choice.label, choice.value));
+  }
   model.abilities.forEach((ability) => ruleBlock(ability.name, ability.rules));
 
   newPage();

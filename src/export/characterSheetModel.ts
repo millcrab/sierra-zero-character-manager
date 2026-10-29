@@ -1,6 +1,7 @@
 import { archetypes, attachments, careers, items, skills, specializations, talents } from "../data/canonical";
 import { formattedArchetypeAbilities } from "../data/archetypeFormatting";
 import { findMotivationOption, motivationKeys, motivationLabels } from "../data/motivations";
+import { archetypeChoiceSummaries } from "../data/archetypeChoices";
 import { availableXp, defenses, derivedCharacteristics, skillPool, skillRank, talentRanks, thresholds } from "../engine/rules";
 import type { Character } from "../types";
 
@@ -16,6 +17,7 @@ export interface CharacterSheetModel {
   status: Array<{ label: string; value: string }>;
   motivations: Array<{ label: string; name: string; detail: string; description: string }>;
   abilities: Array<{ name: string; rules: string }>;
+  archetypeChoices: Array<{ label: string; value: string }>;
   skills: Array<{ name: string; characteristic: string; rank: number; dice: { proficiency: number; ability: number } }>;
   talents: Array<{ name: string; rank: number; activation: string; rules: string }>;
   specializations: Array<{
@@ -65,6 +67,7 @@ export function createCharacterSheetModel(character: Character): CharacterSheetM
       return { label: motivationLabels[key], name: option?.name ?? "Not selected", detail: selected.detail, description: option?.description ?? "" };
     }),
     abilities: formattedArchetypeAbilities(archetype).map(({ name, rules }) => ({ name, rules })),
+    archetypeChoices: archetypeChoiceSummaries(character),
     skills: skills.map((skill) => ({
       name: skill.name,
       characteristic: skill.characteristic,

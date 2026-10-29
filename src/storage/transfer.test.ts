@@ -60,4 +60,11 @@ describe("character backup transfer", () => {
     expect(restored[0].resources.performance).toBe(0);
     expect(restored[0].criticalInjuries).toEqual([]);
   });
+
+  it("adds archetype ability-choice storage to older characters", () => {
+    const character = createCharacterDraft();
+    delete (character.profile as Partial<typeof character.profile>).archetypeAbilityChoices;
+    const restored = parseBackup(serializeBackup([character]));
+    expect(restored[0].profile.archetypeAbilityChoices).toEqual({});
+  });
 });

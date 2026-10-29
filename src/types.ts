@@ -184,6 +184,7 @@ export interface Character {
     portraitDataUrl: string | null;
     portraitFocusY?: number;
     backstory: string;
+    archetypeAbilityChoices: Record<string, string>;
     motivations: {
       strength: MotivationSelection;
       flaw: MotivationSelection;
