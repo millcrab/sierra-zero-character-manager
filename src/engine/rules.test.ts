@@ -15,6 +15,7 @@ import {
   defenses,
   createAgileOperatorDraft,
   favorCost,
+  favorChangeFromRoll,
   increaseCharacteristic,
   increaseSkill,
   itemFavorCost,
@@ -22,6 +23,8 @@ import {
   removeNodeWithCascade,
   removeAttachmentFromDraft,
   removeInventoryFromDraft,
+  removeInventory,
+  sellInventory,
   newEncounter,
   nextTurn,
   setExtraManeuver,
@@ -149,6 +152,17 @@ describe("advancement accounting", () => {
     expect(character.usage.sessionTalentIds).toEqual([]);
   });
 
+  it("resolves a Favor roll from Performance and resets Performance when committed", () => {
+    const character = createAgileOperatorDraft();
+    character.resources.favor = 40;
+    character.resources.performance = -3;
+    const change = favorChangeFromRoll(character.resources.performance, 7);
+    expect(change).toBe(4);
+    applySessionUpdate(character, 0, change, true);
+    expect(character.resources.favor).toBe(44);
+    expect(character.resources.performance).toBe(0);
+  });
+
   it("maps controlled gear to +0, blocks advanced purchases, and tracks attachment hard points", () => {
     const character = createAgileOperatorDraft();
     character.inventory.push({ instanceId: "pistol-1", itemId: "pistol", equipped: false, attachmentIds: [] });
@@ -191,6 +205,19 @@ describe("advancement accounting", () => {
     character.inventory.push({ instanceId: "reward", itemId: "pistol", equipped: false, attachmentIds: [], acquisition: { payment: "reward", amount: 0 } });
     removeInventoryFromDraft(character, "reward");
     expect(character.resources.money).toBe(150);
+  });
+
+  it("removes used gear and adds selected sale proceeds", () => {
+    const character = createAgileOperatorDraft();
+    character.status = "complete";
+    character.resources.money = 25;
+    character.inventory.push({ instanceId: "painkiller", itemId: "painkiller", equipped: false, attachmentIds: [] });
+    character.inventory.push({ instanceId: "pistol", itemId: "pistol", equipped: true, attachmentIds: [] });
+    removeInventory(character, "painkiller");
+    expect(character.inventory.map((instance) => instance.instanceId)).toEqual(["pistol"]);
+    sellInventory(character, "pistol", 37.9);
+    expect(character.resources.money).toBe(62);
+    expect(character.inventory).toEqual([]);
   });
 
   it("resets encounter uses and commits extra-maneuver strain on next turn", () => {

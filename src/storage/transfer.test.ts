@@ -51,4 +51,13 @@ describe("character backup transfer", () => {
     const restored = parseBackup(serializeBackup([character]));
     expect(restored[0].profile.motivations.strength).toEqual({ optionId: "", detail: "Never gives up" });
   });
+
+  it("adds Performance and Critical Injury storage to older characters", () => {
+    const character = createCharacterDraft();
+    delete (character.resources as Partial<typeof character.resources>).performance;
+    delete (character as Partial<typeof character>).criticalInjuries;
+    const restored = parseBackup(serializeBackup([character]));
+    expect(restored[0].resources.performance).toBe(0);
+    expect(restored[0].criticalInjuries).toEqual([]);
+  });
 });

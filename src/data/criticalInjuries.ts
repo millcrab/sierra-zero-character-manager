@@ -1,0 +1,35 @@
+import type { CriticalInjuryRecord } from "../types";
+
+export const criticalInjuries: CriticalInjuryRecord[] = [
+  { id: "minor-nick", roll: "01–05", name: "Minor Nick", severity: "Easy", description: "Suffer 1 strain." },
+  { id: "slowed-down", roll: "06–10", name: "Slowed Down", severity: "Easy", description: "Act only during the last allied Initiative slot on your next turn." },
+  { id: "sudden-jolt", roll: "11–15", name: "Sudden Jolt", severity: "Easy", description: "Drop whatever you are holding." },
+  { id: "distracted", roll: "16–20", name: "Distracted", severity: "Easy", description: "You cannot perform a free maneuver during your next turn." },
+  { id: "off-balance", roll: "21–25", name: "Off-Balance", severity: "Easy", description: "Add one Setback die to your next skill check." },
+  { id: "discouraging-wound", roll: "26–30", name: "Discouraging Wound", severity: "Easy", description: "Move one player Story Point to the Game Master pool." },
+  { id: "stunned", roll: "31–35", name: "Stunned", severity: "Easy", description: "You are staggered until the end of your next turn." },
+  { id: "stinger", roll: "36–40", name: "Stinger", severity: "Easy", description: "Increase the difficulty of your next check by one." },
+  { id: "bowled-over", roll: "41–45", name: "Bowled Over", severity: "Average", description: "You are knocked prone and suffer 1 strain." },
+  { id: "head-ringer", roll: "46–50", name: "Head Ringer", severity: "Average", description: "Increase the difficulty of all Intellect and Cunning checks by one until healed." },
+  { id: "fearsome-wound", roll: "51–55", name: "Fearsome Wound", severity: "Average", description: "Increase the difficulty of all Presence and Willpower checks by one until healed." },
+  { id: "agonizing-wound", roll: "56–60", name: "Agonizing Wound", severity: "Average", description: "Increase the difficulty of all Brawn and Agility checks by one until healed." },
+  { id: "slightly-dazed", roll: "61–65", name: "Slightly Dazed", severity: "Average", description: "You are disoriented until healed." },
+  { id: "scattered-senses", roll: "66–70", name: "Scattered Senses", severity: "Average", description: "Remove all Boost dice from your skill checks until healed." },
+  { id: "hamstrung", roll: "71–75", name: "Hamstrung", severity: "Average", description: "Lose your free maneuver until healed." },
+  { id: "overpowered", roll: "76–80", name: "Overpowered", severity: "Average", description: "The attacker may immediately attempt another attack against you as an incidental, using the same pool as the original attack." },
+  { id: "winded", roll: "81–85", name: "Winded", severity: "Average", description: "You cannot voluntarily suffer strain to activate abilities or gain additional maneuvers until healed." },
+  { id: "compromised", roll: "86–90", name: "Compromised", severity: "Average", description: "Increase the difficulty of all skill checks by one until healed." },
+  { id: "at-the-brink", roll: "91–95", name: "At the Brink", severity: "Hard", description: "Suffer 2 strain each time you perform an action until healed." },
+  { id: "crippled", roll: "96–100", name: "Crippled", severity: "Hard", description: "One limb is impaired until healed. Increase the difficulty of checks requiring that limb by one." },
+  { id: "maimed", roll: "101–105", name: "Maimed", severity: "Hard", description: "One limb is permanently lost. Without a replacement, you cannot perform actions requiring that limb; all other actions add one Setback die until healed." },
+  { id: "horrific-injury", roll: "106–110", name: "Horrific Injury", severity: "Hard", description: "Roll 1d10: 1–3 Brawn, 4–6 Agility, 7 Intellect, 8 Cunning, 9 Presence, 10 Willpower. Treat that characteristic as one lower until healed." },
+  { id: "temporarily-disabled", roll: "111–115", name: "Temporarily Disabled", severity: "Hard", description: "You are immobilized until healed." },
+  { id: "blinded", roll: "116–120", name: "Blinded", severity: "Hard", description: "You cannot see. Upgrade all checks twice and Perception and Vigilance checks three times until healed." },
+  { id: "knocked-senseless", roll: "121–125", name: "Knocked Senseless", severity: "Hard", description: "You are staggered until healed." },
+  { id: "gruesome-injury", roll: "126–130", name: "Gruesome Injury", severity: "Daunting", description: "Roll 1d10: 1–3 Brawn, 4–6 Agility, 7 Intellect, 8 Cunning, 9 Presence, 10 Willpower. Permanently reduce that characteristic by one, to a minimum of 1." },
+  { id: "bleeding-out", roll: "131–140", name: "Bleeding Out", severity: "Daunting", description: "At the start of every turn, suffer 1 wound and 1 strain until healed. For every 5 wounds beyond your threshold, suffer another Critical Injury." },
+  { id: "the-end-is-nigh", roll: "141–150", name: "The End Is Nigh", severity: "Daunting", description: "You die after the last Initiative slot during the next round unless this injury is healed." },
+  { id: "dead", roll: "151+", name: "Dead", severity: "—", description: "Complete, obliterated death." },
+];
+
+export const findCriticalInjury = (id: string) => criticalInjuries.find((injury) => injury.id === id);

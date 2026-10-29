@@ -376,6 +376,18 @@ export function removeInventoryFromDraft(character: Character, instanceId: strin
   return character;
 }
 
+export function removeInventory(character: Character, instanceId: string): Character {
+  character.inventory = character.inventory.filter((candidate) => candidate.instanceId !== instanceId);
+  return character;
+}
+
+export function sellInventory(character: Character, instanceId: string, salePrice: number): Character {
+  const instance = character.inventory.find((candidate) => candidate.instanceId === instanceId);
+  if (!instance) return character;
+  character.resources.money += Math.max(0, Math.trunc(salePrice));
+  return removeInventory(character, instanceId);
+}
+
 export function applyStartingSkillSelections(
   character: Character,
   selections: Character["build"]["startingSkillSelections"]
@@ -432,9 +444,14 @@ export function applyStartingSkillSelections(
   return character;
 }
 
-export function applySessionUpdate(character: Character, xpChange: number, favorChange: number): Character {
+export function favorChangeFromRoll(performance: number, roll: number): number {
+  return Math.trunc(performance) + Math.max(1, Math.min(10, Math.trunc(roll)));
+}
+
+export function applySessionUpdate(character: Character, xpChange: number, favorChange: number, resetPerformance = false): Character {
   character.resources.xpAwarded += Math.trunc(xpChange);
   character.resources.favor = Math.max(0, Math.min(100, character.resources.favor + Math.trunc(favorChange)));
+  if (resetPerformance) character.resources.performance = 0;
   character.usage.sessionTalentIds = [];
   return character;
 }
@@ -484,11 +501,13 @@ export function createCharacterDraft(
       bonusStartingXp: 0,
       xpAwarded: 0,
       favor: 10,
+      performance: 0,
       money: 500,
       wounds: 0,
       strain: 0
     },
     inventory: [],
+    criticalInjuries: [],
     usage: {
       encounterTalentIds: [],
       sessionTalentIds: [],

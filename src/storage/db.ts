@@ -37,6 +37,7 @@ export function normalizeCharacter(character: Character): Character {
   };
   character.build.startingSkillSelections.archetypeSkillGroups ??= {};
   character.resources.money ??= 500;
+  character.resources.performance ??= 0;
   character.resources.startingBenefit ??= character.resources.bonusStartingXp >= 10 ? "xp" : "favor";
   const motivationKeys = ["strength", "flaw", "desire", "fear"] as const;
   for (const key of motivationKeys) {
@@ -50,6 +51,7 @@ export function normalizeCharacter(character: Character): Character {
   }
   character.profile.portraitFocusY ??= 50;
   character.inventory = character.inventory.map((instance) => ({ ...instance, attachmentIds: instance.attachmentIds ?? [], attachmentAcquisitions: instance.attachmentAcquisitions ?? {} }));
+  character.criticalInjuries ??= [];
   return character;
 }
 

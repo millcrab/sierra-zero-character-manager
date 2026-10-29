@@ -4,13 +4,15 @@ Mobile-first, local-first character creation, play reference, and advancement fo
 
 Live app: https://millcrab.github.io/sierra-zero-character-manager/
 
-## Current milestone — checkpoint 0.10
+## Current milestone — checkpoint 0.11
 
 The repository contains the local-first application foundation and the complete approved mechanical data corpus: 24 archetypes, 6 careers, 39 specialization trees, 780 talent nodes, 125 items, and 31 attachments. Character creation includes reversible characteristic, skill, talent, gear, and attachment spending plus motivations and a portrait-ready profile. Play includes Dashboard, Combat, Social, Skills, Gear, and specialization reference screens; Advance includes session updates, specialization trees, skills, and profile editing. Players can export one character, back up the complete roster, and import validated backups including portraits. Remaining work is tracked in `docs/implementation-status.md`; approved rulings are recorded in `docs/ambiguities.md`.
 
 Checkpoint 0.10 adds polished PDF character-sheet export with owned specialization trees, corrected archetype ability formatting, horizontal swipe navigation across Play, Advance, and Manual tabs, and compact combat/social symbol-spend tables using recognizable Genesys glyphs. It also strengthens PWA updates so a newly deployed version replaces the cached application shell automatically instead of leaving an installed phone app on an older checkpoint.
 
 The October 2026 data correction replaces Medicine with Leadership among Counselor's bonus career skills, ensuring its Leadership-based talents have the required skill support.
+
+Checkpoint 0.11 adds complete inventory disposition controls, including chosen sale proceeds and consumable painkillers; a persistent Performance tracker with automatic end-of-session Favor resolution; and a Combat dashboard Critical Injury tracker containing the complete injury table, healing difficulties, and effects.
 
 The generated canonical data lives in `src/data/canonical.generated.ts`. Rebuild it from the supplied Sierra Zero PDFs with:
 

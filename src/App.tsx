@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { archetypes, attachments, careers, items, skills, specializations, talents } from "./data/canonical";
 import { maneuvers } from "./data/maneuvers";
+import { criticalInjuries, findCriticalInjury } from "./data/criticalInjuries";
 import {
   applySessionUpdate,
   applyStartingSkillSelections,
@@ -19,13 +20,16 @@ import {
   increaseCharacteristic,
   increaseSkill,
   itemFavorCost,
+  favorChangeFromRoll,
   newEncounter,
   nextCharacteristicCost,
   nextSkillRankCost,
   nextTurn,
   remainingHardPoints,
   removeAttachmentFromDraft,
+  removeInventory,
   removeInventoryFromDraft,
+  sellInventory,
   setExtraManeuver,
   setItemEquipped,
   skillPool,
@@ -176,9 +180,10 @@ export default function App() {
     }
   };
 
-  const applySessionUpdateWithBackup = (xpChange: number, favorChange: number) => {
+  const applySessionUpdateWithBackup = (xpChange: number, favorRoll: number | null) => {
     if (!active) return;
-    const updated = applySessionUpdate(structuredClone(active), xpChange, favorChange);
+    const favorChange = favorRoll === null ? 0 : favorChangeFromRoll(active.resources.performance, favorRoll);
+    const updated = applySessionUpdate(structuredClone(active), xpChange, favorChange, favorRoll !== null);
     updated.metadata.updatedAt = new Date().toISOString();
     setCharacters((current) => current.map((character) => character.id === updated.id ? updated : character));
     void saveCharacter(updated);
@@ -216,6 +221,7 @@ export default function App() {
     {view === "summary" && <section className="content-stack">
       <div className="identity-panel"><Portrait character={active} large /><div><p className="eyebrow">Active responder</p><h2>{active.profile.name}</h2><p>{archetype.name} · {career.name} · {active.build.specializationIds.map((id) => findSpecialization(id).name).join(" / ")}</p></div></div>
       <StatusGrid character={active} />
+      <PerformanceTracker character={active} onUpdate={updateActive} />
       <section className="paper-panel"><p className="file-code">ARCHETYPE CAPABILITIES</p><ArchetypeAbilities archetype={archetype} /></section>
       <MotivationSummary character={active} />
       <div className="export-actions">
@@ -443,6 +449,8 @@ function InventoryRow({ character, instanceId, onUpdate }: { character: Characte
   const item = findItem(instance.itemId);
   const eligible = attachments.filter((attachment) => attachment.eligibleItemIds.includes(item.id) && !instance.attachmentIds.includes(attachment.id));
   const [modifying, setModifying] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [salePrice, setSalePrice] = useState(Math.max(0, Math.floor(item.price / 4)));
   const [attachmentId, setAttachmentId] = useState(eligible[0]?.id ?? "");
   const attachment = attachments.find((record) => record.id === attachmentId);
   useEffect(() => {
@@ -465,8 +473,10 @@ function InventoryRow({ character, instanceId, onUpdate }: { character: Characte
       return draft;
     });
   };
+  const discard = () => onUpdate((draft) => removeInventory(draft, instanceId));
+  const sell = () => onUpdate((draft) => sellInventory(draft, instanceId, salePrice));
   const canModify = instance.attachmentIds.length > 0 || eligible.length > 0;
-  return <details className="inventory-row"><summary><span><strong>{item.name}</strong><small>{item.category} · {instance.equipped ? "Equipped" : "Carried"} · {remainingHardPoints(character, instanceId)} HP open{instance.attachmentIds.length ? ` · ${instance.attachmentIds.length} mod${instance.attachmentIds.length === 1 ? "" : "s"}` : ""}</small></span></summary><div className="inventory-body"><ItemDetails item={item} /><div className="inline-actions"><button className={instance.equipped ? "primary" : "secondary"} onClick={() => onUpdate((draft) => setItemEquipped(draft, instanceId, !instance.equipped))}>{instance.equipped ? "Equipped" : "Equip"}</button>{canModify && <button className="secondary" onClick={() => setModifying(true)}>Modify</button>}{character.status === "draft" && <button className="secondary" onClick={() => onUpdate((draft) => removeInventoryFromDraft(draft, instanceId))}>Remove and refund</button>}</div></div>{modifying && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModifying(false); }}><section className="modification-dialog" role="dialog" aria-modal="true" aria-labelledby={`modify-${instanceId}`}><div className="section-heading"><div><p className="eyebrow">Item workshop</p><h2 id={`modify-${instanceId}`}>Modify {item.name}</h2></div><button className="text-button" onClick={() => setModifying(false)}>Close</button></div><p><strong>{remainingHardPoints(character, instanceId)} of {item.hardPoints} hard points available</strong></p>{instance.attachmentIds.length > 0 && <div className="installed-modifications"><h3>Installed</h3>{instance.attachmentIds.map((id) => { const record = attachments.find((candidate) => candidate.id === id)!; return <article key={id}><strong>{record.name}</strong><small>{record.hardPoints} HP</small><p><GameText>{record.effect}</GameText></p>{character.status === "draft" && <button className="text-button" onClick={() => onUpdate((draft) => removeAttachmentFromDraft(draft, instanceId, id))}>Remove and refund</button>}</article>; })}</div>}{eligible.length > 0 ? <div className="available-modifications"><h3>Available modifications</h3><label className="field-label">Modification<select value={attachmentId} onChange={(event) => setAttachmentId(event.target.value)}>{eligible.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label>{attachment && <div className="modification-preview"><small>{attachment.hardPoints} HP · ${attachment.price} · Rarity {attachment.rarity} · {attachment.access}</small><p><GameText>{attachment.effect}</GameText></p><div className="inline-actions">{canAcquireNormally(attachment.access) ? <><button className="secondary" disabled={character.resources.money < attachment.price || !canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("cash")}>Install ${attachment.price}</button><button className="secondary" disabled={character.resources.favor < itemFavorCost(attachment) || !canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("favor")}>Install {itemFavorCost(attachment)} Favor</button></> : <button className="secondary" disabled={!canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("reward")}>Install reward</button>}</div></div>}</div> : <p>No additional compatible modifications are available.</p>}</section></div>}</details>;
+  return <details className="inventory-row"><summary><span><strong>{item.name}</strong><small>{item.category} · {instance.equipped ? "Equipped" : "Carried"} · {remainingHardPoints(character, instanceId)} HP open{instance.attachmentIds.length ? ` · ${instance.attachmentIds.length} mod${instance.attachmentIds.length === 1 ? "" : "s"}` : ""}</small></span></summary><div className="inventory-body"><ItemDetails item={item} /><div className="inline-actions"><button className={instance.equipped ? "primary" : "secondary"} onClick={() => onUpdate((draft) => setItemEquipped(draft, instanceId, !instance.equipped))}>{instance.equipped ? "Equipped" : "Equip"}</button>{canModify && <button className="secondary" onClick={() => setModifying(true)}>Modify</button>}{character.status === "draft" ? <button className="secondary" onClick={() => onUpdate((draft) => removeInventoryFromDraft(draft, instanceId))}>Remove and refund</button> : <>{item.id === "painkiller" && <button className="primary" onClick={discard}>Use</button>}<button className="secondary" onClick={() => setRemoving((current) => !current)}>Remove</button></>}</div>{removing && character.status === "complete" && <div className="inventory-disposition"><p><strong>Remove {item.name} from this character?</strong></p><label className="field-label">Sale proceeds<input type="number" min="0" step="1" value={salePrice} onChange={(event) => setSalePrice(Math.max(0, Number(event.target.value)))} /></label><div className="inline-actions"><button className="primary" onClick={sell}>Sell for ${Math.trunc(salePrice)}</button><button className="danger" onClick={discard}>Remove without payment</button><button className="secondary" onClick={() => setRemoving(false)}>Cancel</button></div></div>}</div>{modifying && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setModifying(false); }}><section className="modification-dialog" role="dialog" aria-modal="true" aria-labelledby={`modify-${instanceId}`}><div className="section-heading"><div><p className="eyebrow">Item workshop</p><h2 id={`modify-${instanceId}`}>Modify {item.name}</h2></div><button className="text-button" onClick={() => setModifying(false)}>Close</button></div><p><strong>{remainingHardPoints(character, instanceId)} of {item.hardPoints} hard points available</strong></p>{instance.attachmentIds.length > 0 && <div className="installed-modifications"><h3>Installed</h3>{instance.attachmentIds.map((id) => { const record = attachments.find((candidate) => candidate.id === id)!; return <article key={id}><strong>{record.name}</strong><small>{record.hardPoints} HP</small><p><GameText>{record.effect}</GameText></p>{character.status === "draft" && <button className="text-button" onClick={() => onUpdate((draft) => removeAttachmentFromDraft(draft, instanceId, id))}>Remove and refund</button>}</article>; })}</div>}{eligible.length > 0 ? <div className="available-modifications"><h3>Available modifications</h3><label className="field-label">Modification<select value={attachmentId} onChange={(event) => setAttachmentId(event.target.value)}>{eligible.map((record) => <option key={record.id} value={record.id}>{record.name}</option>)}</select></label>{attachment && <div className="modification-preview"><small>{attachment.hardPoints} HP · ${attachment.price} · Rarity {attachment.rarity} · {attachment.access}</small><p><GameText>{attachment.effect}</GameText></p><div className="inline-actions">{canAcquireNormally(attachment.access) ? <><button className="secondary" disabled={character.resources.money < attachment.price || !canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("cash")}>Install ${attachment.price}</button><button className="secondary" disabled={character.resources.favor < itemFavorCost(attachment) || !canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("favor")}>Install {itemFavorCost(attachment)} Favor</button></> : <button className="secondary" disabled={!canInstallAttachment(character, instanceId, attachment.id)} onClick={() => install("reward")}>Install reward</button>}</div></div>}</div> : <p>No additional compatible modifications are available.</p>}</section></div>}</details>;
 }
 
 function PlayView({ character, onUpdate, onSummary }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void; onSummary: () => void }) {
@@ -506,7 +516,17 @@ function CombatView({ character, onUpdate }: { character: Character; onUpdate: C
   const [showSymbolSpends, setShowSymbolSpends] = useState(false);
   const weapons = character.inventory.filter((instance) => instance.equipped && findItem(instance.itemId).weapon).slice(0, 3);
   const check = character.usage.turnChecklist;
-  return <section className="content-stack"><div className="section-heading"><div><p className="file-code">PLAY / COMBAT</p><h2>Combat reference</h2></div><button className="secondary symbol-spend-button" type="button" onClick={() => setShowSymbolSpends(true)}>Spend symbols</button></div><ResourceControls character={character} onUpdate={onUpdate} /><StatusGrid character={character} /><section className="paper-panel"><p className="eyebrow">Turn checklist</p><div className="turn-checks"><label><input type="checkbox" checked={check.action} onChange={(event) => onUpdate((draft) => { draft.usage.turnChecklist.action = event.target.checked; return draft; })} /> Action</label><label><input type="checkbox" checked={check.maneuver} onChange={(event) => onUpdate((draft) => { draft.usage.turnChecklist.maneuver = event.target.checked; return draft; })} /> Maneuver</label><label><input type="checkbox" checked={check.extraManeuver} onChange={(event) => onUpdate((draft) => setExtraManeuver(draft, event.target.checked))} /> Extra Maneuver (2 Strain)</label></div><button className="primary" onClick={() => onUpdate(nextTurn)}>Next turn</button></section><section className="paper-panel"><p className="eyebrow">Equipped weapons</p>{weapons.length ? weapons.map((instance) => <WeaponCard key={instance.instanceId} character={character} itemId={instance.itemId} />) : <p>No equipped weapons.</p>}</section><section className="paper-panel"><p className="eyebrow">Maneuvers</p>{maneuvers.map((maneuver) => <details key={maneuver.id}><summary>{maneuver.name} — {maneuver.summary}</summary><p><GameText>{maneuver.rules}</GameText></p></details>)}</section><TalentReferenceList character={character} onUpdate={onUpdate} filter={(talent) => talent.tags.includes("combat")} title="Combat talents" />{showSymbolSpends && <SymbolSpendDialog scene="combat" onClose={() => setShowSymbolSpends(false)} />}</section>;
+  return <section className="content-stack">
+    <div className="section-heading"><div><p className="file-code">PLAY / COMBAT</p><h2>Combat reference</h2></div><button className="secondary symbol-spend-button" type="button" onClick={() => setShowSymbolSpends(true)}>Spend symbols</button></div>
+    <ResourceControls character={character} onUpdate={onUpdate} />
+    <StatusGrid character={character} />
+    <CriticalInjuryTracker character={character} onUpdate={onUpdate} />
+    <section className="paper-panel"><p className="eyebrow">Turn checklist</p><div className="turn-checks"><label><input type="checkbox" checked={check.action} onChange={(event) => onUpdate((draft) => { draft.usage.turnChecklist.action = event.target.checked; return draft; })} /> Action</label><label><input type="checkbox" checked={check.maneuver} onChange={(event) => onUpdate((draft) => { draft.usage.turnChecklist.maneuver = event.target.checked; return draft; })} /> Maneuver</label><label><input type="checkbox" checked={check.extraManeuver} onChange={(event) => onUpdate((draft) => setExtraManeuver(draft, event.target.checked))} /> Extra Maneuver (2 Strain)</label></div><button className="primary" onClick={() => onUpdate(nextTurn)}>Next turn</button></section>
+    <section className="paper-panel"><p className="eyebrow">Equipped weapons</p>{weapons.length ? weapons.map((instance) => <WeaponCard key={instance.instanceId} character={character} itemId={instance.itemId} />) : <p>No equipped weapons.</p>}</section>
+    <section className="paper-panel"><p className="eyebrow">Maneuvers</p>{maneuvers.map((maneuver) => <details key={maneuver.id}><summary>{maneuver.name} — {maneuver.summary}</summary><p><GameText>{maneuver.rules}</GameText></p></details>)}</section>
+    <TalentReferenceList character={character} onUpdate={onUpdate} filter={(talent) => talent.tags.includes("combat")} title="Combat talents" />
+    {showSymbolSpends && <SymbolSpendDialog scene="combat" onClose={() => setShowSymbolSpends(false)} />}
+  </section>;
 }
 
 function SocialView({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
@@ -545,7 +565,36 @@ function ResourceControls({ character, onUpdate, strainOnly = false }: { charact
   return <section className="paper-panel resource-controls">{!strainOnly && <div><span>Wounds</span><div className="rank-controls"><button className="secondary" onClick={() => onUpdate((draft) => applyWounds(draft, -1))}>−</button><b>{character.resources.wounds} / {status.wounds}</b><button className="secondary" onClick={() => onUpdate((draft) => applyWounds(draft, 1))}>+</button></div></div>}<div><span>Strain</span><div className="rank-controls"><button className="secondary" onClick={() => onUpdate((draft) => applyStrain(draft, -1))}>−</button><b>{character.resources.strain} / {status.strain}</b><button className="secondary" onClick={() => onUpdate((draft) => applyStrain(draft, 1))}>+</button></div></div></section>;
 }
 
-function AdvanceView({ character, onUpdate, onSessionUpdate, onSummary }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void; onSessionUpdate: (xpChange: number, favorChange: number) => void; onSummary: () => void }) {
+function PerformanceTracker({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  const changes = [-3, -2, -1, 1, 2, 3];
+  return <section className="paper-panel performance-tracker">
+    <div><p className="eyebrow">Current session</p><h2>Performance</h2><p>Record Bureau-approved or disapproved conduct as it happens.</p></div>
+    <strong className={character.resources.performance < 0 ? "is-negative" : ""}>{character.resources.performance > 0 ? "+" : ""}{character.resources.performance}</strong>
+    <div className="performance-actions">{changes.map((change) => <button key={change} className="secondary" type="button" onClick={() => onUpdate((draft) => { draft.resources.performance += change; return draft; })}>{change > 0 ? `+${change}` : change}</button>)}</div>
+  </section>;
+}
+
+function CriticalInjuryTracker({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {
+  const [injuryId, setInjuryId] = useState(criticalInjuries[0].id);
+  const selected = findCriticalInjury(injuryId)!;
+  const addInjury = () => onUpdate((draft) => {
+    draft.criticalInjuries.push({ instanceId: crypto.randomUUID(), injuryId, addedAt: new Date().toISOString() });
+    return draft;
+  });
+  const healInjury = (instanceId: string) => onUpdate((draft) => {
+    draft.criticalInjuries = draft.criticalInjuries.filter((injury) => injury.instanceId !== instanceId);
+    return draft;
+  });
+  return <section className="paper-panel critical-tracker">
+    <div className="section-heading"><div><p className="eyebrow">Critical Injuries</p><h2>Injury tracker</h2></div><strong>{character.criticalInjuries.length} active</strong></div>
+    <p className="instruction">Select the rolled result. Each existing injury adds +10 to future Critical Injury rolls.</p>
+    <div className="critical-add"><label className="field-label">Critical Injury<select value={injuryId} onChange={(event) => setInjuryId(event.target.value)}>{criticalInjuries.map((injury) => <option key={injury.id} value={injury.id}>{injury.roll} · {injury.name} · {injury.severity}</option>)}</select></label><button className="primary" type="button" onClick={addInjury}>Add injury</button></div>
+    <p className="critical-preview"><strong>{selected.name}:</strong> <GameText>{selected.description}</GameText></p>
+    {character.criticalInjuries.length === 0 ? <p>No active Critical Injuries.</p> : <div className="critical-table-wrap"><table className="critical-table"><thead><tr><th>Injury</th><th>Difficulty</th><th>Effect</th><th>Heal</th></tr></thead><tbody>{character.criticalInjuries.map((instance) => { const injury = findCriticalInjury(instance.injuryId); if (!injury) return null; return <tr key={instance.instanceId}><th>{injury.name}<small>{injury.roll}</small></th><td>{injury.severity}</td><td><GameText>{injury.description}</GameText></td><td><button className="secondary" type="button" onClick={() => healInjury(instance.instanceId)}>Heal</button></td></tr>; })}</tbody></table></div>}
+  </section>;
+}
+
+function AdvanceView({ character, onUpdate, onSessionUpdate, onSummary }: { character: Character; onUpdate: (updater: (character: Character) => Character) => void; onSessionUpdate: (xpChange: number, favorRoll: number | null) => void; onSummary: () => void }) {
   const [tab, setTab] = useState<AdvanceTab>(() => {
     const saved = currentHistoryState()?.advanceTab;
     return saved && advanceTabs.includes(saved) ? saved : "update";
@@ -578,10 +627,31 @@ function SpecializationAdvancement({ character, onUpdate }: { character: Charact
   return <section className="content-stack"><section className="paper-panel"><div className="section-heading"><div><p className="file-code">ADVANCE / SPECIALIZATIONS</p><h2>Acquire specialization</h2></div><strong>{availableXp(character)} XP available</strong></div>{candidate && <><select value={newSpecId} onChange={(event) => setNewSpecId(event.target.value)}>{available.map((record) => <option key={record.id} value={record.id}>{record.name}{record.careerId === null ? " — Universal" : record.careerId === character.build.careerId ? " — Career" : " — Out of career"}</option>)}</select><button className="primary" disabled={availableXp(character) < cost} onClick={() => onUpdate((draft) => { draft.build.specializationIds.push(candidate.id); draft.build.purchases.specializationIds.push(candidate.id); return draft; })}>Acquire for {cost} XP</button></>}</section>{character.build.specializationIds.map((id) => { const specialization = findSpecialization(id); const nodeIds = new Set(specialization.nodes.map((node) => node.id)); const purchased = character.build.purchases.talentNodeIds.filter((nodeId) => nodeIds.has(nodeId)); return <section key={id}><div className="section-heading"><div><p className="eyebrow">Owned specialization</p><h2>{specialization.name}</h2></div><strong>{availableXp(character)} XP available</strong></div><TalentTree specialization={specialization} purchasedIds={purchased} availableXp={availableXp(character)} interactive onChange={(ids) => onUpdate((draft) => { const otherNodeIds = draft.build.purchases.talentNodeIds.filter((nodeId) => !nodeIds.has(nodeId)); draft.build.purchases.talentNodeIds = [...otherNodeIds, ...ids]; return draft; })} /></section>; })}</section>;
 }
 
-function SessionUpdatePanel({ character, onApply }: { character: Character; onApply: (xpChange: number, favorChange: number) => void }) {
-  const [xpChange, setXpChange] = useState(0); const [favorChange, setFavorChange] = useState(0);
+function SessionUpdatePanel({ character, onApply }: { character: Character; onApply: (xpChange: number, favorRoll: number | null) => void }) {
+  const [xpChange, setXpChange] = useState(0);
+  const [favorStep, setFavorStep] = useState<"closed" | "choice" | "roll">("closed");
+  const [favorRoll, setFavorRoll] = useState(1);
   const [backedUp, setBackedUp] = useState(false);
-  return <section className="paper-panel"><p className="eyebrow">End of session</p><h2>Apply final changes</h2><p className="instruction">Enter the XP award and final Favor change determined at the table. Applying the update resets once-per-session talent uses and downloads a fresh backup of this character.</p><div className="update-fields"><label className="field-label">XP change<input type="number" value={xpChange} onChange={(event) => { setXpChange(Number(event.target.value)); setBackedUp(false); }} /></label><label className="field-label">Favor change<input type="number" value={favorChange} onChange={(event) => { setFavorChange(Number(event.target.value)); setBackedUp(false); }} /></label></div><button className="primary" disabled={xpChange === 0 && favorChange === 0} onClick={() => { onApply(xpChange, favorChange); setXpChange(0); setFavorChange(0); setBackedUp(true); }}>Apply session update and backup</button>{backedUp && <p className="success-note" role="status">Session changes saved. Character backup downloaded.</p>}<p><small>Current totals: {character.resources.xpAwarded} awarded XP · {character.resources.favor} Favor</small></p></section>;
+  const favorChange = favorChangeFromRoll(character.resources.performance, favorRoll);
+  const resultingFavor = Math.max(0, Math.min(100, character.resources.favor + favorChange));
+  const finish = (roll: number | null) => {
+    onApply(xpChange, roll);
+    setXpChange(0);
+    setFavorStep("closed");
+    setBackedUp(true);
+  };
+  return <section className="paper-panel">
+    <p className="eyebrow">End of session</p>
+    <h2>Commit session update</h2>
+    <p className="instruction">Record the XP award, then choose whether to resolve the Favor roll. Committing resets once-per-session talent uses and downloads a fresh backup.</p>
+    <div className="session-summary"><div><span>Performance</span><strong>{character.resources.performance > 0 ? "+" : ""}{character.resources.performance}</strong></div><div><span>Current Favor</span><strong>{character.resources.favor}</strong></div></div>
+    <div className="update-fields"><label className="field-label">XP change<input type="number" value={xpChange} onChange={(event) => { setXpChange(Number(event.target.value)); setBackedUp(false); }} /></label></div>
+    <button className="primary" onClick={() => { setFavorStep("choice"); setBackedUp(false); }}>Commit session update and backup</button>
+    {backedUp && <p className="success-note" role="status">Session changes saved. Character backup downloaded.</p>}
+    <p><small>Current totals: {character.resources.xpAwarded} awarded XP · {character.resources.favor} Favor</small></p>
+    {favorStep === "choice" && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setFavorStep("closed"); }}><section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="favor-change-heading"><p className="eyebrow">Session commitment</p><h2 id="favor-change-heading">Favor change?</h2><p>Do you want to resolve this character's end-of-session Favor roll now?</p><p><strong>Current Performance: {character.resources.performance > 0 ? "+" : ""}{character.resources.performance}</strong></p><div className="dialog-actions"><button className="secondary" onClick={() => setFavorStep("closed")}>Cancel</button><button className="secondary" onClick={() => finish(null)}>No Favor change</button><button className="primary" onClick={() => setFavorStep("roll")}>Resolve Favor</button></div><p className="field-note">Choosing no Favor change preserves Performance so it can be resolved later.</p></section></div>}
+    {favorStep === "roll" && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setFavorStep("closed"); }}><section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="favor-roll-heading"><p className="eyebrow">End-of-session Favor</p><h2 id="favor-roll-heading">What did you roll?</h2><label className="field-label">d10 result<input type="number" min="1" max="10" step="1" value={favorRoll} onChange={(event) => setFavorRoll(Math.max(1, Math.min(10, Number(event.target.value))))} /></label><div className="favor-calculation"><span>{favorRoll} roll</span><span>{character.resources.performance >= 0 ? "+" : "−"} {Math.abs(character.resources.performance)} Performance</span><strong>{favorChange >= 0 ? "+" : ""}{favorChange} Favor</strong></div><p>Favor will change from <strong>{character.resources.favor}</strong> to <strong>{resultingFavor}</strong>, and Performance will reset to 0.</p><div className="dialog-actions"><button className="secondary" onClick={() => setFavorStep("choice")}>Back</button><button className="primary" onClick={() => finish(favorRoll)}>Apply Favor and backup</button></div></section></div>}
+  </section>;
 }
 
 function ProfileEditor({ character, onUpdate }: { character: Character; onUpdate: CharacterUpdater }) {

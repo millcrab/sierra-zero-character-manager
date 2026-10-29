@@ -1,4 +1,5 @@
 import { archetypes, careers, items, skills, specializations } from "../data/canonical";
+import { criticalInjuries } from "../data/criticalInjuries";
 import type { Character } from "../types";
 import { normalizeCharacter } from "./db";
 
@@ -42,6 +43,8 @@ export function validateCharacter(value: unknown): string[] {
   for (const id of nodeIds) if (!validNodes.has(String(id))) errors.push(`Unknown talent node: ${String(id)}.`);
   const inventory = Array.isArray(value.inventory) ? value.inventory : [];
   for (const instance of inventory) if (!isRecord(instance) || !items.some((record) => record.id === instance.itemId)) errors.push(`Unknown inventory item: ${isRecord(instance) ? String(instance.itemId) : "invalid entry"}.`);
+  const injuries = Array.isArray(value.criticalInjuries) ? value.criticalInjuries : [];
+  for (const injury of injuries) if (!isRecord(injury) || !criticalInjuries.some((record) => record.id === injury.injuryId)) errors.push(`Unknown Critical Injury: ${isRecord(injury) ? String(injury.injuryId) : "invalid entry"}.`);
   return errors;
 }
 

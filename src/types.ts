@@ -155,6 +155,20 @@ export interface AcquisitionRecord {
   amount: number;
 }
 
+export interface CriticalInjuryRecord {
+  id: string;
+  roll: string;
+  name: string;
+  severity: "Easy" | "Average" | "Hard" | "Daunting" | "—";
+  description: string;
+}
+
+export interface CharacterCriticalInjury {
+  instanceId: string;
+  injuryId: string;
+  addedAt: string;
+}
+
 export type MotivationKey = "strength" | "flaw" | "desire" | "fear";
 export interface MotivationSelection {
   optionId: string;
@@ -195,6 +209,7 @@ export interface Character {
     bonusStartingXp: number;
     xpAwarded: number;
     favor: number;
+    performance: number;
     money: number;
     wounds: number;
     strain: number;
@@ -207,6 +222,7 @@ export interface Character {
     acquisition?: AcquisitionRecord;
     attachmentAcquisitions?: Record<string, AcquisitionRecord>;
   }>;
+  criticalInjuries: CharacterCriticalInjury[];
   usage: {
     encounterTalentIds: string[];
     sessionTalentIds: string[];
